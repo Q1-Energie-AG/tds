@@ -307,82 +307,82 @@ defmodule Tds.Messages do
         database_ucs
 
     curr_offset = offset_start + 58
-    ibHostName = <<curr_offset::little-size(16)>>
-    cchHostName = <<String.length(hostname)::little-size(16)>>
+    ib_host_name = <<curr_offset::little-size(16)>>
+    cch_host_name = <<String.length(hostname)::little-size(16)>>
     curr_offset = curr_offset + byte_size(hostname_ucs)
 
-    ibUserName = <<curr_offset::little-size(16)>>
-    cchUserName = <<String.length(username)::little-size(16)>>
+    ib_user_name = <<curr_offset::little-size(16)>>
+    cch_user_name = <<String.length(username)::little-size(16)>>
     curr_offset = curr_offset + byte_size(username_ucs)
 
-    ibPassword = <<curr_offset::little-size(16)>>
-    cchPassword = <<String.length(password)::little-size(16)>>
+    ib_password = <<curr_offset::little-size(16)>>
+    cch_password = <<String.length(password)::little-size(16)>>
     curr_offset = curr_offset + byte_size(password_ucs)
 
-    ibAppName = <<curr_offset::little-size(16)>>
-    cchAppName = <<String.length(app_name)::little-size(16)>>
+    ib_app_name = <<curr_offset::little-size(16)>>
+    cch_app_name = <<String.length(app_name)::little-size(16)>>
     curr_offset = curr_offset + byte_size(app_name_ucs)
 
-    ibServerName = <<curr_offset::little-size(16)>>
-    cchServerName = <<String.length(servername)::little-size(16)>>
+    ib_server_name = <<curr_offset::little-size(16)>>
+    cch_server_name = <<String.length(servername)::little-size(16)>>
     curr_offset = curr_offset + byte_size(servername_ucs)
 
-    ibUnused = <<0::size(16)>>
-    cbUnused = <<0::size(16)>>
+    ib_unused = <<0::size(16)>>
+    cb_unused = <<0::size(16)>>
 
-    ibCltIntName = <<curr_offset::little-size(16)>>
-    cchCltIntName = <<4::little-size(16)>>
+    ib_clt_int_name = <<curr_offset::little-size(16)>>
+    cch_clt_int_name = <<4::little-size(16)>>
     curr_offset = curr_offset + 4 * 2
 
-    ibLanguage = <<0::size(16)>>
-    cchLanguage = <<0::size(16)>>
+    ib_language = <<0::size(16)>>
+    cch_language = <<0::size(16)>>
 
-    ibDatabase = <<curr_offset::little-size(16)>>
+    ib_database = <<curr_offset::little-size(16)>>
 
-    cchDatabase =
+    cch_database =
       if database == "" do
         <<0xAC>>
       else
         <<String.length(database)::little-size(16)>>
       end
 
-    clientID = <<0::size(48)>>
+    client_id = <<0::size(48)>>
 
-    ibSSPI = <<0::size(16)>>
-    cbSSPI = <<0::size(16)>>
+    ib_sspi = <<0::size(16)>>
+    cb_sspi = <<0::size(16)>>
 
-    ibAtchDBFile = <<0::size(16)>>
-    cchAtchDBFile = <<0::size(16)>>
+    ib_atch_db_file = <<0::size(16)>>
+    cch_atch_db_file = <<0::size(16)>>
 
-    ibChangePassword = <<0::size(16)>>
-    cchChangePassword = <<0::size(16)>>
+    ib_change_password = <<0::size(16)>>
+    cch_change_password = <<0::size(16)>>
 
-    cbSSPILong = <<0::size(32)>>
+    cb_sspi_long = <<0::size(32)>>
 
     offset =
-      ibHostName <>
-        cchHostName <>
-        ibUserName <>
-        cchUserName <>
-        ibPassword <>
-        cchPassword <>
-        ibAppName <>
-        cchAppName <>
-        ibServerName <>
-        cchServerName <>
-        ibUnused <>
-        cbUnused <>
-        ibCltIntName <>
-        cchCltIntName <>
-        ibLanguage <>
-        cchLanguage <>
-        ibDatabase <>
-        cchDatabase <>
-        clientID <>
-        ibSSPI <>
-        cbSSPI <>
-        ibAtchDBFile <>
-        cchAtchDBFile <> ibChangePassword <> cchChangePassword <> cbSSPILong
+      ib_host_name <>
+        cch_host_name <>
+        ib_user_name <>
+        cch_user_name <>
+        ib_password <>
+        cch_password <>
+        ib_app_name <>
+        cch_app_name <>
+        ib_server_name <>
+        cch_server_name <>
+        ib_unused <>
+        cb_unused <>
+        ib_clt_int_name <>
+        cch_clt_int_name <>
+        ib_language <>
+        cch_language <>
+        ib_database <>
+        cch_database <>
+        client_id <>
+        ib_sspi <>
+        cb_sspi <>
+        ib_atch_db_file <>
+        cch_atch_db_file <> ib_change_password <> cch_change_password <> cb_sspi_long
 
     login7 = login_a <> offset <> login_data
 

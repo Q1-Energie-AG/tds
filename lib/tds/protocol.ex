@@ -638,58 +638,6 @@ defmodule Tds.Protocol do
   defp send_param_query(
          %Query{handle: handle, statement: statement} = _,
          params,
-         %{transaction: :started} = s
-       ) do
-    msg =
-      case handle do
-        nil ->
-          p = [
-            %Parameter{
-              name: "@statement",
-              type: :string,
-              direction: :input,
-              value: statement
-            },
-            %Parameter{
-              name: "@params",
-              type: :string,
-              direction: :input,
-              value: Parameter.prepared_params(params)
-            }
-            | Parameter.prepare_params(params)
-          ]
-
-          msg_rpc(proc: :sp_executesql, params: p)
-
-        handle ->
-          p = [
-            %Parameter{
-              name: "@handle",
-              type: :integer,
-              direction: :input,
-              value: handle
-            }
-            | Parameter.prepare_params(params)
-          ]
-
-          msg_rpc(proc: :sp_execute, params: p)
-      end
-
-    case msg_send(msg, s) do
-      {:ok, %{result: result} = s} ->
-        {:ok, result, %{s | state: :ready}}
-
-      {:error, err, %{transaction: :started} = s} ->
-        {:error, err, %{s | transaction: :failed}}
-
-      err ->
-        err
-    end
-  end
-
-  defp send_param_query(
-         %Query{handle: handle, statement: statement} = _,
-         params,
          s
        ) do
     msg =
