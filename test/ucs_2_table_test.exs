@@ -19,11 +19,15 @@ defmodule Tds.Ucs2TableTest do
       case String.split(line, "  ") do
         [<<?[, char::utf8, ?]>>, code_hex, title] ->
           {code, ""} = Integer.parse(code_hex, 16)
-          [[
-            <<char::utf8>>,
-            "0x" <> Base.encode16(<<code::little-size(2)-unit(8)>>, case: :upper),
-            String.trim_trailing(title, "\n")
-            ]]
+
+          [
+            [
+              <<char::utf8>>,
+              "0x" <>
+                Base.encode16(<<code::little-size(2)-unit(8)>>, case: :upper),
+              String.trim_trailing(title, "\n")
+            ]
+          ]
 
         _ ->
           []
@@ -38,7 +42,8 @@ defmodule Tds.Ucs2TableTest do
             "select cast(#{bin} as nchar(1)), N'#{bin}', N'#{title}'"
 
           [_, bin, title], acc ->
-            acc <> " union all \n select cast(#{bin} as nchar(1)), N'#{bin}', N'#{title}'"
+            acc <>
+              " union all \n select cast(#{bin} as nchar(1)), N'#{bin}', N'#{title}'"
         end)
 
       assert chunk == query(sql)

@@ -57,6 +57,7 @@ defmodule Tds.Parameter do
 
   def do_name([param | tail], name, acc) do
     name = name + 1
+
     param =
       case param do
         %Tds.Parameter{name: nil} -> fix_data_type(%{param | name: "@#{name}"})

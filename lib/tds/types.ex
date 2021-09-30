@@ -1758,7 +1758,8 @@ defmodule Tds.Types do
           |> Integer.to_string()
           |> String.pad_leading(2, "0")
 
-        {:ok, datetime, ^offset} = DateTime.from_iso8601("#{str}#{sign}#{h}:#{m}")
+        {:ok, datetime, ^offset} =
+          DateTime.from_iso8601("#{str}#{sign}#{h}:#{m}")
 
         datetime
     end

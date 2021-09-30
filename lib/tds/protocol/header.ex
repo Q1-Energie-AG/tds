@@ -29,7 +29,6 @@ defmodule Tds.Protocol.Header do
           | :sspi
           | :pre_login
 
-
   @typedoc """
   Header flag that should tell if pakcage data that header preceding is end of
   TDS message or not.
@@ -110,7 +109,8 @@ defmodule Tds.Protocol.Header do
       @messages,
       type,
       0,
-      {:error, Tds.Error.exception("TDS received unknown message type `#{type}`")}
+      {:error,
+       Tds.Error.exception("TDS received unknown message type `#{type}`")}
     )
   end
 

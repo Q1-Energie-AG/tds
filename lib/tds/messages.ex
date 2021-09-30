@@ -382,7 +382,8 @@ defmodule Tds.Messages do
         ib_sspi <>
         cb_sspi <>
         ib_atch_db_file <>
-        cch_atch_db_file <> ib_change_password <> cch_change_password <> cb_sspi_long
+        cch_atch_db_file <>
+        ib_change_password <> cch_change_password <> cb_sspi_long
 
     login7 = login_a <> offset <> login_data
 
@@ -442,7 +443,13 @@ defmodule Tds.Messages do
     encode_packets(0x03, data)
   end
 
-  defp encode(msg_transmgr(command: "TM_BEGIN_XACT", isolation_level: isolation_level), %{trans: trans}) do
+  defp encode(
+         msg_transmgr(
+           command: "TM_BEGIN_XACT",
+           isolation_level: isolation_level
+         ),
+         %{trans: trans}
+       ) do
     isolation = encode_isolation_level(isolation_level)
     encode_trans(5, trans, <<isolation::size(1)-unit(8), 0x0::size(1)-unit(8)>>)
   end
@@ -451,15 +458,21 @@ defmodule Tds.Messages do
     encode_trans(7, trans, <<0, 0>>)
   end
 
-  defp encode(msg_transmgr(command: "TM_ROLLBACK_XACT", name: name), %{trans: trans}) do
-    payload = unless name > 0,
-      do: <<0x00::size(2)-unit(8)>>,
-      else: <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
+  defp encode(msg_transmgr(command: "TM_ROLLBACK_XACT", name: name), %{
+         trans: trans
+       }) do
+    payload =
+      unless name > 0,
+        do: <<0x00::size(2)-unit(8)>>,
+        else:
+          <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
 
     encode_trans(8, trans, payload)
   end
 
-  defp encode(msg_transmgr(command: "TM_SAVE_XACT", name: savepoint), %{trans: trans}) do
+  defp encode(msg_transmgr(command: "TM_SAVE_XACT", name: savepoint), %{
+         trans: trans
+       }) do
     encode_trans(9, trans, <<2::unsigned-8, savepoint::little-size(2)-unit(8)>>)
   end
 
@@ -493,7 +506,8 @@ defmodule Tds.Messages do
     all_headers = <<total_length::little-size(32)>> <> headers
 
     data =
-      all_headers <> <<request_type::little-size(2)-unit(8), request_payload::binary>>
+      all_headers <>
+        <<request_type::little-size(2)-unit(8), request_payload::binary>>
 
     encode_packets(0x0E, data)
   end
@@ -519,7 +533,7 @@ defmodule Tds.Messages do
           # for that parameter. Otherwise RPC will fail and we must use ProceName
           # instead. But we want to avoid execution overhead with named approach
           # hence ommiting @handle from parameter name
-          %{p| name: ""}
+          %{p | name: ""}
 
         p ->
           # other paramters should be named

@@ -83,23 +83,35 @@ defmodule PLPTest do
   test "xml with xml schema", context do
     drop_table("dbo.xml_data_with_schema")
 
-    query("CREATE XML SCHEMA COLLECTION EmployeeSchema AS N'#{@xml_schema}'", [])
-
-    assert [[_, _, _, "EmployeeSchema" | _]] = query(
-      "SELECT * FROM sys.xml_schema_collections WHERE [name] = @1;",
-      [%Tds.Parameter{value: "EmployeeSchema", type: :string, name: "@1"}]
+    query(
+      "CREATE XML SCHEMA COLLECTION EmployeeSchema AS N'#{@xml_schema}'",
+      []
     )
 
-    xml_value = [
-      "<Employee>",
-      "<Name>",
-      "<First>Jacob</First>",
-      "<Middle>V</Middle>",
-      "<Last>Sebastian</Last>",
-      "</Name>",
-      "<!-- Deleted other information for brevity -->",
-      "</Employee>",
-    ] |> Enum.join("")
+    assert [[_, _, _, "EmployeeSchema" | _]] =
+             query(
+               "SELECT * FROM sys.xml_schema_collections WHERE [name] = @1;",
+               [
+                 %Tds.Parameter{
+                   value: "EmployeeSchema",
+                   type: :string,
+                   name: "@1"
+                 }
+               ]
+             )
+
+    xml_value =
+      [
+        "<Employee>",
+        "<Name>",
+        "<First>Jacob</First>",
+        "<Middle>V</Middle>",
+        "<Last>Sebastian</Last>",
+        "</Name>",
+        "<!-- Deleted other information for brevity -->",
+        "</Employee>"
+      ]
+      |> Enum.join("")
 
     :ok =
       query(
@@ -112,7 +124,10 @@ defmodule PLPTest do
         []
       )
 
-    :ok = query("INSERT INTO dbo.xml_data_with_schema VALUES (N'#{xml_value}')", [])
-    assert [[xml_value]] == query("select employee from dbo.xml_data_with_schema", [])
+    :ok =
+      query("INSERT INTO dbo.xml_data_with_schema VALUES (N'#{xml_value}')", [])
+
+    assert [[xml_value]] ==
+             query("select employee from dbo.xml_data_with_schema", [])
   end
 end

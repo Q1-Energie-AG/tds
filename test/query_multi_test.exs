@@ -53,7 +53,8 @@ defmodule QueryMultiTest do
              """)
   end
 
-  test "should report error like any other function e.g. Tds.query/4", context do
+  test "should report error like any other function e.g. Tds.query/4",
+       context do
     # below is used macro, actual result is {:error, %Tds.Error{}} =...
     assert %Tds.Error{} = query_multi("select * from non_existing_table")
   end
