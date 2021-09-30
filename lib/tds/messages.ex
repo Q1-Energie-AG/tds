@@ -1,8 +1,11 @@
 defmodule Tds.Messages do
+  @moduledoc false
+
   import Record, only: [defrecord: 2]
   import Tds.Utils
   import Tds.Tokens, only: [decode_tokens: 1]
 
+  alias String.Chars
   alias Tds.Parameter
   alias Tds.Types
 
@@ -250,7 +253,7 @@ defmodule Tds.Messages do
 
   defp encode(msg_login(params: params), _env) do
     {:ok, hostname} = :inet.gethostname()
-    hostname = String.Chars.to_string(hostname)
+    hostname = Chars.to_string(hostname)
     app_name = Node.self() |> Atom.to_string()
 
     tds_version = <<0x04, 0x00, 0x00, 0x74>>
@@ -462,10 +465,11 @@ defmodule Tds.Messages do
          trans: trans
        }) do
     payload =
-      unless name > 0,
-        do: <<0x00::size(2)-unit(8)>>,
-        else:
-          <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
+      if name > 0 do
+        <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
+      else
+        <<0x00::size(2)-unit(8)>>
+      end
 
     encode_trans(8, trans, payload)
   end

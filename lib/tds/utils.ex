@@ -37,13 +37,13 @@ defmodule Tds.Utils do
   end
 
   def encode_chars(string, to_codepage) do
-    Application.get_env(:tds, :text_encoder, Tds.Latin1)
-    |> apply(:encode, [string, to_codepage])
+    encoder = Application.get_env(:tds, :text_encoder, Tds.Latin1)
+    encoder.encode(string, to_codepage)
   end
 
   def decode_chars(binary, from_codepage) do
-    Application.get_env(:tds, :text_encoder, Tds.Latin1)
-    |> apply(:decode, [binary, from_codepage])
+    decoder = Application.get_env(:tds, :text_encoder, Tds.Latin1)
+    decoder.decode(binary, from_codepage)
   end
 
   def to_boolean(<<1>>) do

@@ -1,4 +1,6 @@
 defmodule Tds.Types do
+  @moduledoc false
+
   import Tds.BinaryUtils
   import Tds.Utils
   use Bitwise
@@ -1750,11 +1752,13 @@ defmodule Tds.Types do
         h = trunc(offset_min / 60)
 
         m =
-          Integer.to_string(offset_min - h * 60)
+          (offset_min - h * 60)
+          |> Integer.to_string()
           |> String.pad_leading(2, "0")
 
         h =
-          abs(h)
+          h
+          |> abs()
           |> Integer.to_string()
           |> String.pad_leading(2, "0")
 
@@ -1844,7 +1848,7 @@ defmodule Tds.Types do
         {type, <<type, 0x07>>, scale: 1}
 
       {_, _, _, fsec} ->
-        scale = Integer.digits(fsec) |> length()
+        scale = fsec |> Integer.digits() |> length()
         {type, <<type, 0x07>>, scale: scale}
 
       %Time{microsecond: {_, scale}} ->

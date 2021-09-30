@@ -194,7 +194,7 @@ defmodule Tds do
   Defaults to `Jason`.
   """
   @spec json_library() :: module()
-  def json_library() do
+  def json_library do
     Application.fetch_env!(:tds, :json_library)
   end
 
@@ -202,7 +202,7 @@ defmodule Tds do
   Generates a version 4 (random) UUID in the MS uniqueidentifier binary format.
   """
   @spec generate_uuid :: <<_::128>>
-  def generate_uuid(), do: Tds.Types.UUID.bingenerate()
+  def generate_uuid, do: Tds.Types.UUID.bingenerate()
 
   @doc """
   Decodes MS uniqueidentifier binary to its string representation

@@ -3,7 +3,7 @@ defmodule PLPTest do
   require Logger
   use ExUnit.Case, async: true
 
-  @tag timeout: 50000
+  @tag timeout: 50_000
 
   setup do
     opts = Application.fetch_env!(:tds, :opts)

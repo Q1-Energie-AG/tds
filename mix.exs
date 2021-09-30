@@ -48,7 +48,7 @@ defmodule Tds.Mixfile do
 
   defp deps do
     [
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.6-rc.1", only: [:dev, :test], runtime: false},
       {:binpp, ">= 0.0.0", only: [:dev, :test]},
       {:decimal, "~> 1.9 or ~> 2.0"},
       {:jason, "~> 1.0", optional: true},

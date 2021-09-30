@@ -58,7 +58,7 @@
         # You can customize the priority of any check
         # Priority values are: `low, normal, high, higher`
         #
-        {Credo.Check.Design.AliasUsage, priority: :low},
+        {Credo.Check.Design.AliasUsage, priority: :low, excluded_namespaces: ["File", "IO", "Inspect", "Kernel", "Macro", "Supervisor", "Task", "Version", "Decimal", "Tds"]},
 
         # For some checks, you can also set other parameters
         #
@@ -133,10 +133,6 @@
         # Deprecated checks (these will be deleted after a grace period)
         #
         {Credo.Check.Readability.Specs, false},
-        {Credo.Check.Warning.NameRedeclarationByAssignment, false},
-        {Credo.Check.Warning.NameRedeclarationByCase, false},
-        {Credo.Check.Warning.NameRedeclarationByDef, false},
-        {Credo.Check.Warning.NameRedeclarationByFn, false},
 
         # Custom checks can be created using `mix credo.gen.check`.
         #

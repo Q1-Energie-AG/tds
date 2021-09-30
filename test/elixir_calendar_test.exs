@@ -3,8 +3,8 @@ defmodule ElixirCalendarTest do
   require Logger
   use ExUnit.Case, async: true
 
-  alias Tds.Types
   alias Tds.Parameter, as: P
+  alias Tds.Types
 
   setup do
     {:ok, pid} =
@@ -55,7 +55,10 @@ defmodule ElixirCalendarTest do
 
     Enum.each(times, fn {time, str} ->
       assert [[time]] ==
-               query("SELECT cast(@1 as time(7))", P.prepare_params(str))
+               query(
+                 "SELECT cast(@1 as time(7))",
+                 P.prepare_params(str)
+               )
     end)
   end
 
@@ -63,11 +66,11 @@ defmodule ElixirCalendarTest do
     # AD dates are not supported yet since `:calendar.date_to_georgian_days` do not
     # support negative years
     date = ~D[0002-02-28]
-    assert date == Types.encode_date(date) |> Types.decode_date()
+    assert date == date |> Types.encode_date() |> Types.decode_date()
     assert [[date]] == query("select @1", [%P{name: "@1", value: date}])
 
     date = ~D[2020-02-28]
-    assert date == Types.encode_date(date) |> Types.decode_date()
+    assert date == date |> Types.encode_date() |> Types.decode_date()
     assert [[date]] == query("select @1", [%P{name: "@1", value: date}])
   end
 
@@ -152,7 +155,10 @@ defmodule ElixirCalendarTest do
 
     Enum.each(datetimes, fn {dt, str} ->
       assert [[dt]] ==
-               query("SELECT cast(@1 as datetime2(7))", P.prepare_params([str]))
+               query(
+                 "SELECT cast(@1 as datetime2(7))",
+                 P.prepare_params([str])
+               )
     end)
   end
 
@@ -469,12 +475,12 @@ defmodule ElixirCalendarTest do
 
   # shift into a timezone with a positive offset
   defp tza(datetime) do
-    DateTime.shift_zone(datetime, "Australia/Brisbane") |> elem(1)
+    datetime |> DateTime.shift_zone("Australia/Brisbane") |> elem(1)
   end
 
   # shift into a timezone with a negative offset
   defp tzb(datetime) do
-    DateTime.shift_zone(datetime, "America/Chicago") |> elem(1)
+    datetime |> DateTime.shift_zone("America/Chicago") |> elem(1)
   end
 
   test "should truncate datetimeoffset(7) to Elixir.DateTime with precision 6",

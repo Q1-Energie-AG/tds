@@ -4,7 +4,7 @@ defmodule TdsIssuesTest do
   use ExUnit.Case, async: true
   import ExUnit.CaptureLog
 
-  @tag timeout: 50000
+  @tag timeout: 50_000
 
   setup do
     opts = Application.fetch_env!(:tds, :opts)
@@ -229,13 +229,11 @@ defmodule TdsIssuesTest do
     )
 
     assert 2 =
-             query(
-               """
-               SELECT TOP (1000) [id] ,[txt]
-               FROM [test].[dbo].[test_collation]
-               """,
-               []
-             )
+             """
+             SELECT TOP (1000) [id] ,[txt]
+             FROM [test].[dbo].[test_collation]
+             """
+             |> query([])
              |> length()
   end
 end

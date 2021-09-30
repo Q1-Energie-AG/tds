@@ -878,7 +878,8 @@ defmodule Tds.Protocol do
 
     case mod.recv(pid, take) do
       {:ok, pkg} ->
-        next_tds_pkg(pkg, buffer, more, last?)
+        pkg
+        |> next_tds_pkg(buffer, more, last?)
         |> msg_recv(s)
 
       {:error, error} ->

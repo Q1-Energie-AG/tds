@@ -65,7 +65,8 @@ defmodule Tds.Error do
       {code, {type, regex}}
     end
 
-  Enum.group_by(errcodes, &elem(&1, 0), &elem(&1, 1))
+  errcodes
+  |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   |> Enum.map(fn {code, type_regexes} ->
     {error_code, ""} = Integer.parse(code)
 

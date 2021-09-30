@@ -1,4 +1,6 @@
 defmodule Tds.Version do
+  @moduledoc false
+
   import Tds.Protocol.Grammar
 
   defstruct version: 0x74000004, str_version: "7.4"

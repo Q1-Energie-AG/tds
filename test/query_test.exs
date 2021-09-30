@@ -3,7 +3,7 @@ defmodule QueryTest do
   require Logger
   use ExUnit.Case, async: true
 
-  @tag timeout: 50000
+  @tag timeout: 50_000
 
   setup do
     opts = Application.fetch_env!(:tds, :opts)
@@ -149,7 +149,8 @@ defmodule QueryTest do
   describe "execution mode" do
     test ":prepare_execute" do
       opts =
-        Application.fetch_env!(:tds, :opts)
+        :tds
+        |> Application.fetch_env!(:opts)
         |> Keyword.put(:execution_mode, :prepare_execute)
 
       {:ok, pid} = Tds.start_link(opts)
@@ -161,7 +162,8 @@ defmodule QueryTest do
 
     test ":executesql" do
       opts =
-        Application.fetch_env!(:tds, :opts)
+        :tds
+        |> Application.fetch_env!(:opts)
         |> Keyword.put(:execution_mode, :executesql)
 
       {:ok, pid} = Tds.start_link(opts)
@@ -173,7 +175,8 @@ defmodule QueryTest do
 
     test "unknown errors out" do
       opts =
-        Application.fetch_env!(:tds, :opts)
+        :tds
+        |> Application.fetch_env!(:opts)
         |> Keyword.put(:execution_mode, :invalid)
 
       {:ok, pid} = Tds.start_link(opts)

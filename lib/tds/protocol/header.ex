@@ -1,4 +1,6 @@
 defmodule Tds.Protocol.Header do
+  @moduledoc false
+
   import Tds.BinaryUtils
   import Bitwise
 
@@ -88,19 +90,21 @@ defmodule Tds.Protocol.Header do
         package::int8,
         window::int8
       >>) do
-    with {^type, pkg_header_type, has_data} <- decode_type(type) do
-      {:ok,
-       struct!(__MODULE__,
-         type: pkg_header_type,
-         status: decode_status(status),
-         length: length - 8,
-         spid: spid,
-         package: package,
-         window: window,
-         has_data: has_data
-       )}
-    else
-      {:error, _} = e -> e
+    case decode_type(type) do
+      {^type, pkg_header_type, has_data} ->
+        {:ok,
+         struct!(__MODULE__,
+           type: pkg_header_type,
+           status: decode_status(status),
+           length: length - 8,
+           spid: spid,
+           package: package,
+           window: window,
+           has_data: has_data
+         )}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

@@ -60,7 +60,8 @@ defmodule BinaryTest do
     ],
     [
       "Thai_100_CI_AS",
-      # [The copyright for the Thai example is owned by The Computer Association of Thailand under the Royal Patronage of His Majesty the King.]
+      # [The copyright for the Thai example is owned by The Computer Association of Thailand
+      # under the Royal Patronage of His Majesty the King.]
       """
       [--------------------------|------------------------]
       ๏ เป็นมนุษย์สุดประเสริฐเลิศคุณค่า  กว่าบรรดาฝูงสัตว์เดรัจฉาน
@@ -87,7 +88,7 @@ defmodule BinaryTest do
     ]
   ]
 
-  @tag timeout: 50000
+  @tag timeout: 50_000
 
   setup do
     opts = Application.fetch_env!(:tds, :opts)
