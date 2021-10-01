@@ -57,8 +57,7 @@ defmodule Tds.Mixfile do
       {:excoveralls, "~> 0.7", only: :test},
       {:ex_doc, "~> 0.19", only: :dev},
       # {:tds_encoding, "~> 1.0", optional: true, only: :test},
-      {:tds_encoding,
-       github: "Q1-Energie-AG/tds-encoding", branch: "rustler_0_22"},
+      {:tds_encoding, github: "Q1-Energie-AG/tds-encoding", tag: "v2.0.0"},
       {:tzdata, "~> 1.0", optional: true, only: :test}
     ]
   end
