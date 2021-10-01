@@ -40,7 +40,7 @@ jobs:
       - name: Install MsSql Client Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y mssql-tools unixodbc-dev
+          sudo apt-get install -y mssql-tools unixodbc-dev libssl-dev
       - uses: actions/checkout@v2
       - name: Setup elixir
         uses: actions/setup-elixir@v1
