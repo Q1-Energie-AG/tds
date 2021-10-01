@@ -73,11 +73,8 @@ defmodule Tds do
   @spec query!(conn, iodata, list, [execute_option]) ::
           Tds.Result.t() | no_return()
   def query!(conn, statement, params, opts \\ []) do
-    query = %Query{statement: statement}
-    opts = Keyword.put_new(opts, :parameters, params)
-
-    case DBConnection.prepare_execute(conn, query, params, opts) do
-      {:ok, _query, result} -> result
+    case query(conn, statement, params, opts) do
+      {:ok, result} -> result
       {:error, %{mssql: %{msg_text: msg}}} -> raise Tds.Error, msg
       {:error, err} -> raise err
     end
@@ -90,18 +87,10 @@ defmodule Tds do
   @spec query_multi(conn(), iodata(), option(), [execute_option]) ::
           {:ok, resultset()}
           | {:error, Exception.t()}
-  def query_multi(conn, statemnt, params, opts \\ []) do
-    query = %Query{statement: statemnt}
+  def query_multi(conn, statement, params, opts \\ []) do
+    opts = Keyword.put_new(opts, :resultset, true)
 
-    opts =
-      opts
-      |> Keyword.put_new(:parameters, params)
-      |> Keyword.put_new(:resultset, true)
-
-    case DBConnection.prepare_execute(conn, query, params, opts) do
-      {:ok, _query, resultset} -> {:ok, resultset}
-      {:error, err} -> {:error, err}
-    end
+    query(conn, statement, params, opts)
   end
 
   @spec prepare(conn, iodata, [option]) ::
@@ -117,9 +106,7 @@ defmodule Tds do
 
   @spec prepare!(conn, iodata, [option]) :: Tds.Query.t() | no_return()
   def prepare!(conn, statement, opts \\ []) do
-    query = %Query{statement: statement}
-
-    case DBConnection.prepare(conn, query, opts) do
+    case prepare(conn, statement, opts) do
       {:ok, query} -> query
       {:error, %{mssql: %{msg_text: msg}}} -> raise Tds.Error, msg
       {:error, err} -> raise err
