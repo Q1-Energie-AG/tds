@@ -40,10 +40,10 @@ jobs:
       - name: Install MsSql Client Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y mssql-tools unixodbc-dev libssl-dev
+          sudo apt-get install -y mssql-tools unixodbc-dev
       - uses: actions/checkout@v2
       - name: Setup elixir
-        uses: actions/setup-elixir@v1
+        uses: erlef/setup-elixir@885971a72ed1f9240973bd92ab57af8c1aa68f24
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
