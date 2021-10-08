@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - support-1.1
+      - fix_github_workflow_test
   pull_request:
     branches:
       - master
