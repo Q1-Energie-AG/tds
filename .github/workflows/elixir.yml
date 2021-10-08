@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - master
+<<<<<<< HEAD
       - support-1.1
       - fix_github_workflow_test
+=======
+>>>>>>> fix_github_workflow
   pull_request:
     branches:
       - master
-      - support-1.1
 
 jobs:
   build:
@@ -73,8 +75,8 @@ jobs:
       - name: Install Dependencies
         run: mix deps.get
 
-      - run: mix format --check-formatted
-        if: ${{ matrix.lint }}
+      # - run: mix format --check-formatted
+        # if: ${{ matrix.lint }}
 
       - run: mix deps.unlock --check-unused
         if: ${{ matrix.lint }}
@@ -88,5 +90,3 @@ jobs:
         run: |
           export PATH="/opt/mssql-tools/bin:$PATH"
           mix test
-
-      - run: mix coveralls.github
