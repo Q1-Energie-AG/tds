@@ -21,6 +21,25 @@ defmodule Tds.TestHelper do
     end
   end
 
+  defmacro prepare(stat, opts \\ []) do
+    quote do
+      case Tds.prepare(var!(context)[:pid], unquote(stat), unquote(opts)) do
+        {:ok, %Tds.Query{} = query} -> query
+        {:error, err} -> err
+      end
+    end
+  end
+
+  defmacro execute(query, params, opts \\ []) do
+    quote do
+      case Tds.execute(var!(context)[:pid], unquote(query), unquote(params), unquote(opts)) do
+        {:ok, %Tds.Query{}, %Tds.Result{rows: nil}} -> :ok
+        {:ok, %Tds.Query{}, %Tds.Result{rows: rows}} -> rows
+        {:error, err} -> err
+      end
+    end
+  end
+
   defmacro query_multi(statement, params \\ [], opts \\ []) do
     quote do
       case Tds.query_multi(
@@ -68,6 +87,15 @@ defmodule Tds.TestHelper do
           " drop table #{table}"
 
       Tds.query!(var!(context)[:pid], statement, [])
+    end
+  end
+
+  defmacro close(query, opts \\ []) do
+    quote do
+      case Tds.close(var!(context)[:pid], unquote(query), unquote(opts)) do
+        :ok -> :ok
+        {:error, err} -> err
+      end
     end
   end
 

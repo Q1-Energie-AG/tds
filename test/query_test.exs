@@ -137,13 +137,36 @@ defmodule QueryTest do
     assert %Tds.Error{} = query("busted", [])
   end
 
+  test "raise for incorrect syntax", context do
+    assert_raise Tds.Error, fn -> Tds.query!(context.pid, "busted", []) end
+  end
+
   test "connection works after failure", context do
     assert %Tds.Error{} = query("busted", [])
     assert [[1]] = query("SELECT 1", [])
   end
 
+  test "connection works after raise", context do
+    assert_raise Tds.Error, fn -> Tds.query!(context.pid, "busted", []) end
+    assert [[1]] = query("SELECT 1", [])
+  end
+
   test "char nulls", context do
     assert [[nil]] = query("SELECT CAST(NULL as nvarchar(255))", [])
+  end
+
+  test "prepare, execute and close", context do
+    assert (%Tds.Query{} = query) = prepare("SELECT 42")
+    assert [[42]] = execute(query, [])
+    assert [[42]] = execute(query, [])
+    assert :ok = close(query)
+    assert [[42]] = execute(query, [])
+  end
+
+  test "prepare, execute and close with table", context do
+    query("DROP TABLE MyTable", [])
+    query("CREATE TABLE MyTable (TableId int)", [])
+    assert {:ok, _query} = Tds.prepare(context.pid, "SELECT * FROM MyTable WHERE TableId = $1")
   end
 
   describe "execution mode" do
