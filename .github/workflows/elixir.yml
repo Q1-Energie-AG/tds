@@ -4,11 +4,7 @@ on:
   push:
     branches:
       - master
-<<<<<<< HEAD
-      - support-1.1
       - fix_github_workflow_test
-=======
->>>>>>> fix_github_workflow
   pull_request:
     branches:
       - master
