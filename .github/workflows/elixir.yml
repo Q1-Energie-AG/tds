@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - mix_format_test
   pull_request:
     branches:
       - master
