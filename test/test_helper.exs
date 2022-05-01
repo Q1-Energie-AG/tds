@@ -117,7 +117,7 @@ case Tds.TestHelper.sqlcmd(opts, """
      CREATE DATABASE [#{database}];
      """) do
   {"", 0} -> :ok
-  _ -> raise RuntimeError, "Initalizing database failed. Is the database server running?"
+  resp -> raise RuntimeError, "Initalizing database failed. Is the database server running?\n\n#{inspect(resp)}"
 end
 
 {"Changed database context to 'test'." <> _, 0} =

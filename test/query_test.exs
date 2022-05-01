@@ -144,6 +144,23 @@ defmodule QueryTest do
     assert [[nil]] = query("SELECT CAST(NULL as nvarchar(255))", [])
   end
 
+  test "varchar casting", context do
+    query("DROP TABLE VarcharTable", [])
+    query("CREATE TABLE VarcharTable (some_field varchar(499))")
+
+    query(
+      "INSERT INTO VarcharTable VALUES ('SOME REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY LONG VAR CHAR')",
+      []
+    )
+
+    assert [
+             [
+               "SOME REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY REALLY LONG VAR CHAR"
+             ]
+           ] ==
+             query("SELECT CAST(some_field as nvarchar(max)) as some_value FROM VarcharTable", [])
+  end
+
   describe "execution mode" do
     test ":prepare_execute" do
       opts = Keyword.put(opts(), :execution_mode, :prepare_execute)

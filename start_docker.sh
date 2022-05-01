@@ -12,7 +12,8 @@ else
 fi
 
 docker run \
-  -e 'ACCEPT_EULA=Y' \
+  -e 'ACCEPT_EULA=1' \
   -e 'SA_PASSWORD=some!Password' \
+  -e 'MSSQL_SA_PASSWORD=some!Password' \
   -p 1433:1433 \
   -d $IMAGE
