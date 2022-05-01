@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - fix_*
   pull_request:
     branches:
       - master
