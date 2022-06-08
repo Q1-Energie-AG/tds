@@ -55,7 +55,7 @@ defmodule Tds.Protocol.Instance do
 
       serv ->
         {port, _} = Integer.parse(serv[:tcp])
-        {:ok, %{s | opts: opts, itcp: port, usock: nil}}
+        {:ok, %{s | opts: opts, instance_port: port, usock: nil}}
     end
   end
 end

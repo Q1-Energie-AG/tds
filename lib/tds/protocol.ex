@@ -9,7 +9,7 @@ defmodule Tds.Protocol do
   use DBConnection
 
   @timeout 5_000
-  @sock_opts [packet: :raw, mode: :binary, active: false]
+  @required_socket_opts [packet: :raw, mode: :binary, active: false]
   @trans_levels [
     :read_uncommitted,
     :read_committed,
@@ -37,7 +37,7 @@ defmodule Tds.Protocol do
   @type t :: %__MODULE__{
           sock: nil | sock,
           usock: nil | pid,
-          itcp: term,
+          instance_port: nil | term,
           opts: nil | Keyword.t(),
           state: state,
           result: nil | list(),
@@ -48,7 +48,7 @@ defmodule Tds.Protocol do
 
   defstruct sock: nil,
             usock: nil,
-            itcp: nil,
+            instance_port: nil,
             opts: nil,
             # Tells if connection is ready or executing command
             state: :ready,
@@ -335,15 +335,14 @@ defmodule Tds.Protocol do
   # CONNECTION
 
   defp connect(opts, s) do
-    host = Keyword.fetch!(opts, :hostname)
-    host = if is_binary(host), do: String.to_charlist(host), else: host
+    host = opts |> Keyword.fetch!(:hostname) |> to_charlist()
 
-    port = s.itcp || opts[:port] || System.get_env("MSSQLPORT") || 1433
+    port = s.instance_port || opts[:port] || System.get_env("MSSQLPORT") || 1433
     {port, _} = if is_binary(port), do: Integer.parse(port), else: {port, nil}
 
     timeout = opts[:timeout] || @timeout
 
-    sock_opts = @sock_opts ++ (opts[:socket_options] || [])
+    sock_opts = Keyword.merge(opts[:socket_options] || [], @required_socket_opts)
 
     s = %{s | opts: opts}
 
