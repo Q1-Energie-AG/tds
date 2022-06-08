@@ -40,8 +40,6 @@ defmodule Tds do
 
   @type conn :: DBConnection.conn()
 
-  @type resultset :: list(Tds.Result.t())
-
   @type option :: DBConnection.option()
 
   @type transaction_option ::
@@ -90,7 +88,7 @@ defmodule Tds do
   all results that server yield for each batch.
   """
   @spec query_multi(conn, iodata, list, [execute_option]) ::
-          {:ok, resultset()}
+          {:ok, [Tds.Result.t()]}
           | {:error, Exception.t()}
   def query_multi(conn, statemnt, params, opts \\ []) do
     query = %Query{statement: statemnt}

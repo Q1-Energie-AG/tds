@@ -12,7 +12,7 @@ defmodule Tds.Tls do
   defstruct [:socket, :ssl_opts, :owner_pid, :handshake?, :buffer]
 
   def connect(socket, ssl_opts) do
-    ssl_opts = ssl_opts ++ @default_ssl_opts
+    ssl_opts = Keyword.merge(@default_ssl_opts, ssl_opts)
     :inet.setopts(socket, active: false)
 
     with {:ok, pid} <- GenServer.start_link(__MODULE__, {socket, ssl_opts}, []),
