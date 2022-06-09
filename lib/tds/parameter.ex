@@ -16,19 +16,19 @@ defmodule Tds.Parameter do
             length: nil
 
   def option_flags(%__MODULE__{direction: direction, value: value}) do
-    fByRefValue =
+    f_by_ref_value =
       case direction do
         :output -> 1
         _ -> 0
       end
 
-    fDefaultValue =
+    f_default_value =
       case value do
         :default -> 1
         _ -> 0
       end
 
-    <<0::size(6), fDefaultValue::size(1), fByRefValue::size(1)>>
+    <<0::size(6), f_default_value::size(1), f_by_ref_value::size(1)>>
   end
 
   def prepared_params(params) do
@@ -36,8 +36,7 @@ defmodule Tds.Parameter do
     |> List.wrap()
     |> name(0)
     |> Enum.map(&fix_data_type/1)
-    |> Enum.map(&Types.encode_param_descriptor/1)
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &Types.encode_param_descriptor/1)
   end
 
   @doc """

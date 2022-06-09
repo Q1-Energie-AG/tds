@@ -313,9 +313,11 @@ defmodule Tds.Messages do
 
   defp encode(msg_transmgr(command: "TM_ROLLBACK_XACT", name: name), %{trans: trans}) do
     payload =
-      unless name > 0,
-        do: <<0x00::size(2)-unit(8)>>,
-        else: <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
+      if name > 0 do
+        <<2::unsigned-8, name::little-size(2)-unit(8), 0x0::size(1)-unit(8)>>
+      else
+        <<0x00::size(2)-unit(8)>>
+      end
 
     encode_trans(8, trans, payload)
   end
