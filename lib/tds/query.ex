@@ -4,7 +4,7 @@ defmodule Tds.Query do
   """
 
   @type t :: %__MODULE__{
-          statement: String.t(),
+          statement: iodata(),
           handle: term
         }
 
@@ -12,10 +12,7 @@ defmodule Tds.Query do
 end
 
 defimpl DBConnection.Query, for: Tds.Query do
-  alias Tds.Parameter
-  alias Tds.Types
-  alias Tds.Query
-  alias Tds.Result
+  alias Tds.{Parameter, Types, Query, Result}
 
   def encode(_statement, [], _opts) do
     []

@@ -17,9 +17,6 @@ defmodule Tds do
   """
   alias Tds.Query
 
-  @timeout 5000
-  @execution_mode :prepare_execute
-
   @type start_option ::
           {:hostname, String.t()}
           | {:port, :inet.port_number()}
@@ -55,7 +52,9 @@ defmodule Tds do
   @spec start_link([start_option]) ::
           {:ok, conn} | {:error, Tds.Error.t() | term}
   def start_link(opts \\ []) do
-    DBConnection.start_link(Tds.Protocol, default(opts))
+    ensure_deps_started!(opts)
+    opts = Tds.Utils.default_opts(opts)
+    DBConnection.start_link(Tds.Protocol, opts)
   end
 
   @spec query(conn, iodata, list, [execute_option]) ::
@@ -175,13 +174,7 @@ defmodule Tds do
 
   @spec child_spec([start_option]) :: Supervisor.Spec.spec()
   def child_spec(opts) do
-    DBConnection.child_spec(Tds.Protocol, default(opts))
-  end
-
-  defp default(opts) do
-    opts
-    |> Keyword.put_new(:idle_timeout, @timeout)
-    |> Keyword.put_new(:execution_mode, @execution_mode)
+    DBConnection.child_spec(Tds.Protocol, Tds.Utils.default_opts(opts))
   end
 
   @doc """
@@ -233,4 +226,17 @@ defmodule Tds do
   """
   @spec encode_uuid!(any) :: <<_::128>>
   def encode_uuid!(value), do: Tds.Types.UUID.dump!(value)
+
+  defp ensure_deps_started!(opts) do
+    if Keyword.get(opts, :ssl, false) in [true, :required, :on] and
+         not List.keymember?(:application.which_applications(), :ssl, 0) do
+      raise """
+      SSL connection can not be established because `:ssl` application is not started,
+      you can add it to `extra_applications` in your `mix.exs`:
+        def application do
+          [extra_applications: [:ssl]]
+        end
+      """
+    end
+  end
 end
