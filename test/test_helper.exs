@@ -104,7 +104,73 @@ defmodule Tds.TestHelper do
 
     System.cmd("sqlcmd", args, stderr_to_stdout: true)
   end
+
+  def assert_docker_available! do
+    case System.cmd("command", ["-v", "docker"], stderr_to_stdout: true) do
+      {_, 0} ->
+        :ok
+
+      {_, _exit_code} ->
+        raise RuntimeError, "Docker is needed to run the tests."
+    end
+  end
+
+  def assert_docker_running! do
+    case System.cmd("docker", ["info"], stderr_to_stdout: true) do
+      {_, 0} ->
+        :ok
+
+      {_, _exit_code} ->
+        raise RuntimeError, "Docker daemon needs to be running to run the tests."
+    end
+  end
+
+  def ensure_docker_started do
+    image = docker_image()
+
+    case System.cmd("docker", ["ps", "--filter", "ancestor=#{image}", "--quiet"]) do
+      {"", _} ->
+        IO.puts("Starting docker container...")
+
+        System.cmd("docker", [
+          "run",
+          "-e",
+          "ACCEPT_EULA=Y",
+          "-e",
+          "SA_PASSWORD=some!Password",
+          "-p",
+          "1433:1433",
+          "-d",
+          image
+        ])
+
+        :timer.sleep(15_000)
+        IO.puts("Database container started")
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp docker_image do
+    :system_architecture
+    |> :erlang.system_info()
+    |> to_string()
+    |> String.split("-")
+    |> hd()
+    |> case do
+      "aarch64" ->
+        "mcr.microsoft.com/azure-sql-edge:latest"
+
+      _ ->
+        "mcr.microsoft.com/mssql/server:2019-latest"
+    end
+  end
 end
+
+Tds.TestHelper.assert_docker_available!()
+Tds.TestHelper.assert_docker_running!()
+Tds.TestHelper.ensure_docker_started()
 
 opts = Tds.TestHelper.opts()
 database = opts[:database]
