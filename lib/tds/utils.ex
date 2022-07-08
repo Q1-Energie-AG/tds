@@ -19,4 +19,11 @@ defmodule Tds.Utils do
   @doc false
   def use_elixir_calendar_types?,
     do: Process.get(:use_elixir_calendar_types, false)
+
+  @doc false
+  def default_opts(opts) do
+    opts
+    |> Keyword.put_new(:idle_timeout, 5000)
+    |> Keyword.put_new(:execution_mode, :prepare_execute)
+  end
 end
