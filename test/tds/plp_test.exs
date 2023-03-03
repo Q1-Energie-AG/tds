@@ -27,7 +27,7 @@ defmodule PLPTest do
       []
     )
 
-    data = File.read!("#{__DIR__}/plp_data.txt")
+    data = File.read!("#{__DIR__}/../support/plp_data.txt")
 
     assert :ok ==
              query("INSERT INTO plp_test VALUES(@1)", [
