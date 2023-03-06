@@ -643,9 +643,7 @@ defmodule Tds.Types do
     {value, tail}
   end
 
-  def decode_plp_chunk(<<chunksize::little-unsigned-32, tail::binary>>, buf)
-      when chunksize == 0,
-      do: {buf, tail}
+  def decode_plp_chunk(<<0::little-unsigned-32, tail::binary>>, buf), do: {buf, tail}
 
   def decode_plp_chunk(
         <<
@@ -689,9 +687,7 @@ defmodule Tds.Types do
     size = byte_size(value)
     <<value::little-size(size)-unit(8)>> = value
 
-    Decimal.Context.get()
-    |> Map.put(:precision, precision)
-    |> Decimal.Context.set()
+    Decimal.Context.update(&Map.put(&1, :precision, precision))
 
     case sign do
       0 -> Decimal.new(-1, value, -scale)
@@ -746,8 +742,7 @@ defmodule Tds.Types do
   def encode_data_type(param),
     do: param |> Parameter.fix_data_type() |> encode_data_type()
 
-  def encode_binary_type(%Parameter{value: value} = param)
-      when value == "" do
+  def encode_binary_type(%Parameter{value: ""} = param) do
     encode_string_type(param)
   end
 
@@ -781,7 +776,7 @@ defmodule Tds.Types do
 
   def encode_uuid_type(%Parameter{value: value}) do
     length =
-      if value == nil do
+      if is_nil(value) do
         0x00
       else
         0x10
@@ -833,20 +828,7 @@ defmodule Tds.Types do
         {attributes, <<value_size>>}
       else
         value_size = int_type_size(value)
-        # cond do
-        #   value_size == 1 ->
-        #     data_type_code = @tds_data_type_tinyint
-        # Enum.find(data_types, fn(x) -> x[:name] == :tinyint end)
-        #   value_size == 2 ->
-        #     data_type_code = @tds_data_type_smallint
-        # Enum.find(data_types, fn(x) -> x[:name] == :smallint end)
-        #   value_size > 2 and value_size <= 4 ->
-        #     data_type_code = @tds_data_type_int
-        # Enum.find(data_types, fn(x) -> x[:name] == :int end)
-        #   value_size > 4 and value_size <= 8 ->
-        #     data_type_code = @tds_data_type_bigint
-        # Enum.find(data_types, fn(x) -> x[:name] == :bigint end)
-        # end
+
         attributes =
           attributes
           |> Keyword.put(:length, value_size)
@@ -863,9 +845,7 @@ defmodule Tds.Types do
   end
 
   def encode_decimal_type(%Parameter{value: value}) do
-    d_ctx = Decimal.Context.get()
-    d_ctx = %{d_ctx | precision: 38}
-    Decimal.Context.set(d_ctx)
+    Decimal.Context.update(&Map.put(&1, :precision, 38))
 
     value_list =
       value
@@ -876,18 +856,17 @@ defmodule Tds.Types do
     {precision, scale} =
       case value_list do
         [p, s] ->
-          {String.length(p) + String.length(s), String.length(s)}
+          len = String.length(s)
+          {String.length(p) + len, len}
 
         [p] ->
           {String.length(p), 0}
       end
 
-    dec_abs =
+    value =
       value
       |> Decimal.abs()
-
-    value =
-      dec_abs.coef
+      |> Map.fetch!(:coef)
       |> :binary.encode_unsigned(:little)
 
     value_size = byte_size(value)
@@ -949,10 +928,6 @@ defmodule Tds.Types do
 
     # keep max precision
     len = 8
-    # cond do
-    #   precision <= 9 -> 4
-    #   precision <= 19 -> 8
-    # end
 
     padding = len - value_size
     value_size = value_size + padding
@@ -1106,9 +1081,7 @@ defmodule Tds.Types do
   end
 
   def encode_decimal_descriptor(%Parameter{value: %Decimal{} = dec}) do
-    d_ctx = Decimal.Context.get()
-    d_ctx = %{d_ctx | precision: 38}
-    Decimal.Context.set(d_ctx)
+    Decimal.Context.update(&Map.put(&1, :precision, 38))
 
     value_list =
       dec
@@ -1226,40 +1199,12 @@ defmodule Tds.Types do
   end
 
   def encode_data(@tds_data_type_floatn, value, _) do
-    # d_ctx = Decimal.Context.get()
-    # d_ctx = %{d_ctx | precision: 38}
-    # Decimal.Context.set(d_ctx)
-
-    # value_list =
-    #   value
-    #   |> Decimal.new()
-    #   |> Decimal.abs()
-    #   |> Decimal.to_string(:scientific)
-    #   |> String.split(".")
-
-    # precision =
-    #   case value_list do
-    #     [p, s] ->
-    #       String.length(p) + String.length(s)
-
-    #     [p] ->
-    #       String.length(p)
-    #   end
-
-    # if precision <= 7 + 1 do
-    #   <<0x04, value::little-float-32>>
-    # else
-    # up to 15 digits of precision
-    # https://docs.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql
     <<0x08, value::little-float-64>>
-    # end
   end
 
   # decimal
   def encode_data(@tds_data_type_decimaln, %Decimal{} = value, attr) do
-    d_ctx = Decimal.Context.get()
-    d_ctx = %{d_ctx | precision: 38}
-    Decimal.Context.set(d_ctx)
+    Decimal.Context.update(&Map.put(&1, :precision, 38))
     precision = attr[:precision]
 
     d =
@@ -1273,13 +1218,12 @@ defmodule Tds.Types do
         -1 -> 0
       end
 
-    d_abs = Decimal.abs(d)
+    value =
+      d
+      |> Decimal.abs()
+      |> Map.fetch!(:coef)
 
-    value = d_abs.coef
-
-    value_binary =
-      value
-      |> :binary.encode_unsigned(:little)
+    value_binary = :binary.encode_unsigned(value, :little)
 
     value_size = byte_size(value_binary)
 

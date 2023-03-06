@@ -18,17 +18,8 @@ defmodule Tds.Parameter do
             length: nil
 
   def option_flags(%__MODULE__{direction: direction, value: value}) do
-    fByRefValue =
-      case direction do
-        :output -> 1
-        _ -> 0
-      end
-
-    fDefaultValue =
-      case value do
-        :default -> 1
-        _ -> 0
-      end
+    fByRefValue = if direction == :output, do: 1, else: 0
+    fDefaultValue = if value == :default, do: 1, else: 0
 
     <<0::size(6), fDefaultValue::size(1), fByRefValue::size(1)>>
   end
@@ -36,7 +27,7 @@ defmodule Tds.Parameter do
   def prepared_params(params) do
     params
     |> List.wrap()
-    |> name(0)
+    |> name(1)
     |> Enum.map_join(", ", fn param ->
       param
       |> fix_data_type()
@@ -51,29 +42,8 @@ defmodule Tds.Parameter do
   def prepare_params(params) do
     params
     |> List.wrap()
-    |> name(0)
+    |> name(1)
     |> Enum.map(&fix_data_type/1)
-  end
-
-  def name(params, name) do
-    do_name(params, name, [])
-  end
-
-  def do_name([param | tail], name, acc) do
-    name = name + 1
-
-    param =
-      case param do
-        %__MODULE__{name: nil} -> fix_data_type(%{param | name: "@#{name}"})
-        %__MODULE__{} -> fix_data_type(param)
-        raw_param -> fix_data_type(raw_param, name)
-      end
-
-    do_name(tail, name, [param | acc])
-  end
-
-  def do_name([], _, acc) do
-    acc
   end
 
   def fix_data_type(%__MODULE__{type: type, value: _value} = param)
@@ -84,17 +54,12 @@ defmodule Tds.Parameter do
   def fix_data_type(%__MODULE__{type: nil, value: nil} = param) do
     # should fix ecto has_one, on_change :nulify issue where type is not know when ecto
     # build query/statement for on_chage callback
-    %{param | type: :binary}
+    %{param | type: :null}
   end
 
   def fix_data_type(%__MODULE__{value: value} = param)
       when is_boolean(value) do
     %{param | type: :boolean}
-  end
-
-  def fix_data_type(%__MODULE__{value: value} = param)
-      when is_binary(value) and value == "" do
-    %{param | type: :string}
   end
 
   def fix_data_type(%__MODULE__{value: value} = param)
@@ -179,4 +144,19 @@ defmodule Tds.Parameter do
   def fix_data_type(raw_param, acc) do
     fix_data_type(%__MODULE__{name: "@#{acc}", value: raw_param})
   end
+
+  defp name(params, name, acc \\ [])
+
+  defp name([param | tail], name, acc) do
+    param =
+      case param do
+        %__MODULE__{name: nil} -> fix_data_type(%{param | name: "@#{name}"})
+        %__MODULE__{} -> fix_data_type(param)
+        raw_param -> fix_data_type(raw_param, name)
+      end
+
+    name(tail, name + 1, [param | acc])
+  end
+
+  defp name([], _, acc), do: acc
 end
