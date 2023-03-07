@@ -180,13 +180,11 @@ defmodule Tds.Types do
     {Map.put(type_info, :name, name), tail}
   end
 
-  defp decode_column_name(<<length::int8(), name::binary-size(length)-unit(16), tail::binary>>) do
-    name = UCS2.to_string(name)
-    {name, tail}
-  end
+  defp decode_column_name(<<length::int8(), name::binary-size(length)-unit(16), tail::binary>>),
+    do: {UCS2.to_string(name), tail}
 
   defp decode_info(<<data_type_code::unsigned-8, tail::binary>>)
-      when is_map_key(@fixed_data_types, data_type_code) do
+       when is_map_key(@fixed_data_types, data_type_code) do
     {%{
        data_type: :fixed,
        data_type_code: data_type_code,
@@ -196,7 +194,7 @@ defmodule Tds.Types do
   end
 
   defp decode_info(<<data_type_code::unsigned-8, tail::binary>>)
-      when data_type_code in @variable_data_types do
+       when data_type_code in @variable_data_types do
     def_type_info = %{
       data_type: :variable,
       data_type_code: data_type_code,

@@ -514,9 +514,8 @@ defmodule Tds.Tokens do
     decode_columns(tail, n - 1, [column | acc])
   end
 
-  defp decode_column(<<_usertype::int32(), _flags::int16(), tail::binary>>) do
-    Types.decode_column(tail)
-  end
+  defp decode_column(<<_usertype::int32(), _flags::int16(), tail::binary>>),
+    do: Types.decode_column(tail)
 
   defp decode_row_columns(binary, colmetadata, acc \\ [])
 
