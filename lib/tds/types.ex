@@ -168,7 +168,24 @@ defmodule Tds.Types do
     end
   end
 
-  def decode_info(<<data_type_code::unsigned-8, tail::binary>>)
+  def decode(data) do
+    {type_info, tail} = decode_info(data)
+    Tds.Types.decode_data(type_info, tail)
+  end
+
+  def decode_column(data) do
+    {type_info, tail} = decode_info(data)
+    {name, tail} = decode_column_name(tail)
+
+    {Map.put(type_info, :name, name), tail}
+  end
+
+  defp decode_column_name(<<length::int8(), name::binary-size(length)-unit(16), tail::binary>>) do
+    name = UCS2.to_string(name)
+    {name, tail}
+  end
+
+  defp decode_info(<<data_type_code::unsigned-8, tail::binary>>)
       when is_map_key(@fixed_data_types, data_type_code) do
     {%{
        data_type: :fixed,
@@ -178,7 +195,7 @@ defmodule Tds.Types do
      }, tail}
   end
 
-  def decode_info(<<data_type_code::unsigned-8, tail::binary>>)
+  defp decode_info(<<data_type_code::unsigned-8, tail::binary>>)
       when data_type_code in @variable_data_types do
     def_type_info = %{
       data_type: :variable,
@@ -699,21 +716,15 @@ defmodule Tds.Types do
     Tds.Utils.decode_chars(data, data_info.collation.codepage)
   end
 
-  def decode_nchar(_data_info, <<data::binary>>) do
-    UCS2.to_string(data)
-  end
+  def decode_nchar(_data_info, <<data::binary>>), do: UCS2.to_string(data)
 
-  def decode_xml(_data_info, <<data::binary>>) do
-    UCS2.to_string(data)
-  end
+  def decode_xml(_data_info, <<data::binary>>), do: UCS2.to_string(data)
 
-  def decode_udt(%{}, <<data::binary>>) do
-    # UDT, if used, should be decoded by app that uses it,
-    # tho we could've registered UDT types on connection
-    # Example could be ecto, where custom type is created
-    # special case are built in udt types such as HierarchyId
-    data
-  end
+  # UDT, if used, should be decoded by app that uses it,
+  # tho we could've registered UDT types on connection
+  # Example could be ecto, where custom type is created
+  # special case are built in udt types such as HierarchyId
+  def decode_udt(%{}, <<data::binary>>), do: data
 
   @doc """
   Data Type Encoders
@@ -809,35 +820,14 @@ defmodule Tds.Types do
     {type, data, [collation: collation]}
   end
 
-  # def encode_integer_type(%Parameter{value: value} = param)
-  #     when value < 0 do
-  #   encode_decimal_type(Decima.new(param))
-  # end
-
   def encode_integer_type(%Parameter{value: value}) do
     attributes = []
     type = @tds_data_type_intn
 
-    {attributes, length} =
-      if value == nil do
-        attributes =
-          attributes
-          |> Keyword.put(:length, 4)
+    length = int_type_size(value)
+    attributes = Keyword.put(attributes, :length, length)
 
-        value_size = int_type_size(value)
-        {attributes, <<value_size>>}
-      else
-        value_size = int_type_size(value)
-
-        attributes =
-          attributes
-          |> Keyword.put(:length, value_size)
-
-        {attributes, <<value_size>>}
-      end
-
-    data = <<type>> <> length
-    {type, data, attributes}
+    {type, <<type, length>>, attributes}
   end
 
   def encode_decimal_type(%Parameter{value: nil} = param) do

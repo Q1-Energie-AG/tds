@@ -1,18 +1,14 @@
 defmodule Tds.Tokens do
   @moduledoc false
-
   import Tds.BinaryUtils
-  import Bitwise
+  import Bitwise, only: [band: 2]
 
   require Logger
 
   alias Tds.Encoding.UCS2
   alias Tds.Types
 
-  def retval_typ_size(38) do
-    # 0x26 - SYBINTN - 1
-    8
-  end
+  def retval_typ_size(38), do: 8
 
   def retval_typ_size(dec) do
     # Undefined
@@ -39,9 +35,7 @@ defmodule Tds.Tokens do
   @spec decode_tokens(any, any) :: [{token, any}]
   def decode_tokens(binary, colmetadata \\ nil)
 
-  def decode_tokens(tail, _) when tail == "" or tail == nil do
-    []
-  end
+  def decode_tokens(tail, _) when tail == "" or tail == nil, do: []
 
   def decode_tokens(<<token::unsigned-size(8), tail::binary>>, collmetadata) do
     {token_data, tail, collmetadata} =
@@ -89,8 +83,7 @@ defmodule Tds.Tokens do
     >> = bin
 
     name = UCS2.to_string(name)
-    {type_info, tail} = Tds.Types.decode_info(data)
-    {value, tail} = Tds.Types.decode_data(type_info, tail)
+    {value, tail} = Tds.Types.decode(data)
     param = %Tds.Parameter{name: name, value: value, direction: :output}
     {{:returnvalue, param}, tail, collmetadata}
   end
@@ -522,19 +515,7 @@ defmodule Tds.Tokens do
   end
 
   defp decode_column(<<_usertype::int32(), _flags::int16(), tail::binary>>) do
-    {info, tail} = Types.decode_info(tail)
-    {name, tail} = decode_column_name(tail)
-
-    info =
-      info
-      |> Map.put(:name, name)
-
-    {info, tail}
-  end
-
-  defp decode_column_name(<<length::int8(), name::binary-size(length)-unit(16), tail::binary>>) do
-    name = UCS2.to_string(name)
-    {name, tail}
+    Types.decode_column(tail)
   end
 
   defp decode_row_columns(binary, colmetadata, acc \\ [])
