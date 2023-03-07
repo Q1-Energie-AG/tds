@@ -27,7 +27,5 @@ defmodule Tds.Encoding.Latin1 do
     :unicode.characters_to_binary(binary, {:utf16, :little})
   end
 
-  def decode(binary, _) when is_binary(binary) do
-    binary
-  end
+  def decode(binary, _) when is_binary(binary), do: binary
 end

@@ -4,19 +4,19 @@ defmodule Tds.Protocol.Header do
   import Tds.BinaryUtils
   import Bitwise
 
-  @messages [
-    {1, :sql_batch, true},
-    {2, :login, true},
-    {3, :rpc, true},
-    {4, :result, true},
-    {6, :attention, false},
-    {7, :bulk_data, true},
-    {8, :federation_token, true},
-    {14, :tm_request, true},
-    {16, :login7, true},
-    {17, :sspi, true},
-    {18, :pre_login, true}
-  ]
+  @messages %{
+    1 => {:sql_batch, true},
+    2 => {:login, true},
+    3 => {:rpc, true},
+    4 => {:result, true},
+    6 => {:attention, false},
+    7 => {:bulk_data, true},
+    8 => {:federation_token, true},
+    14 => {:tm_request, true},
+    16 => {:login7, true},
+    17 => {:sspi, true},
+    18 => {:pre_login, true}
+  }
 
   @type pkg_header_type ::
           :sql_batch
@@ -86,8 +86,8 @@ defmodule Tds.Protocol.Header do
         <<type::int8(), status::int8(), length::int16(), spid::int16(), package::int8(),
           window::int8()>>
       ) do
-    case decode_type(type) do
-      {^type, pkg_header_type, has_data} ->
+    case Map.fetch(@messages, type) do
+      {pkg_header_type, has_data} ->
         {:ok,
          %__MODULE__{
            type: pkg_header_type,
@@ -99,23 +99,14 @@ defmodule Tds.Protocol.Header do
            has_data?: has_data
          }}
 
-      {:error, _reason} = e ->
-        e
+      :error ->
+        {:error, Tds.Error.exception("TDS received unknown message type `#{type}`")}
     end
   end
 
-  defp decode_type(type) when is_integer(type) do
-    List.keyfind(
-      @messages,
-      type,
-      0,
-      {:error, Tds.Error.exception("TDS received unknown message type `#{type}`")}
-    )
-  end
-
   defp decode_status(status) do
-    snd_status = if(0x01 == (status &&& 0x01), do: :eom, else: :normal)
-    msg_ignore = if(0x02 == (status &&& 0x02), do: :ignore)
+    snd_status = if 0x01 == (status &&& 0x01), do: :eom, else: :normal
+    msg_ignore = if 0x02 == (status &&& 0x02), do: :ignore
 
     conn_reset =
       cond do

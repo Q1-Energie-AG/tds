@@ -30,9 +30,7 @@ defmodule Tds.Protocol.Collation do
   def encode(%{codepage: :RAW}), do: {:ok, <<0x0::byte(5)>>}
 
   @spec decode(binary) :: {:ok, t} | {:error, :more} | {:error, any}
-  def decode(<<0x0::byte(5)>>) do
-    {:ok, %__MODULE__{codepage: :RAW}}
-  end
+  def decode(<<0x0::byte(5)>>), do: {:ok, %__MODULE__{codepage: :RAW}}
 
   def decode(<<lcid::bit(20), col_flags::bit(8), version::bit(4), sort_id::byte()>>) do
     codepage = decode_sortid(sort_id) || decode_lcid(lcid) || "WINDOWS-1252"
