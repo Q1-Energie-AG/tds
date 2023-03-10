@@ -71,11 +71,13 @@ defmodule Tds.Tokens do
           "Unsupported Token code #{inspect(token, base: :hex)} in Token Stream"
   end
 
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/7091f6f6-b83d-4ed2-afeb-ba5013dfb18f
   defp decode_returnvalue(bin, collmetadata) do
     {param, tail} = Types.Decoder.decode(bin)
     {{:returnvalue, param}, tail, collmetadata}
   end
 
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/c719f199-e71b-4187-90b9-94f78bd1870e
   defp decode_returnstatus(
          <<value::little-size(32), tail::binary>>,
          collmetadata
@@ -84,6 +86,7 @@ defmodule Tds.Tokens do
   end
 
   # COLMETADATA
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/58880b9f-381c-43b2-bf8b-0727a98c4f4c
   defp decode_colmetadata(
          <<column_count::little-size(2)-unit(8), tail::binary>>,
          _
@@ -93,6 +96,7 @@ defmodule Tds.Tokens do
   end
 
   # ORDER
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/252759be-9d74-4435-809d-d55dd860ea78
   defp decode_order(<<length::little-unsigned-16, tail::binary>>, collmetadata) do
     length = trunc(length / 2)
     {columns, tail} = decode_column_order(tail, length)
@@ -100,6 +104,7 @@ defmodule Tds.Tokens do
   end
 
   # ERROR
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/9805e9fa-1f8b-4cf8-8f78-8d2602228635
   defp decode_error(
          <<l::little-size(16), data::binary-size(l), tail::binary>>,
          collmetadata
@@ -132,6 +137,7 @@ defmodule Tds.Tokens do
     {{:error, e}, tail, collmetadata}
   end
 
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/284bb815-d083-4ed5-b33a-bdc2492e322b
   defp decode_info(
          <<l::little-size(16), data::binary-size(l), tail::binary>>,
          collmetadata
@@ -176,12 +182,14 @@ defmodule Tds.Tokens do
   end
 
   ## ROW
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/3840ef93-3b10-4aca-9fd1-a210b8bb6d0c
   defp decode_row(<<tail::binary>>, collmetadata) do
     {row, tail} = decode_row_columns(tail, collmetadata)
     {{:row, row}, tail, collmetadata}
   end
 
   ## NBC ROW
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/c0da3cc9-4441-476b-aa99-5a518f22dc0a
   defp decode_nbcrow(<<tail::binary>>, collmetadata) do
     column_count = Enum.count(collmetadata)
     bitmap_bytes = round(Float.ceil(column_count / 8))
@@ -191,6 +199,7 @@ defmodule Tds.Tokens do
     {{:row, row}, tail, collmetadata}
   end
 
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/2b3eb7e5-d43d-4d1b-bf4d-76b9e3afc791
   defp decode_envchange(
          <<
            _length::little-unsigned-16,
@@ -405,6 +414,7 @@ defmodule Tds.Tokens do
   end
 
   ## DONE
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/3c06f110-98bd-4d5b-b836-b1ba66452cb7
   defp decode_done(
          <<status::little-unsigned-size(2)-unit(8), cur_cmd::little-unsigned-size(2)-unit(8),
            row_count::little-size(8)-unit(8), tail::binary>>,
@@ -431,17 +441,20 @@ defmodule Tds.Tokens do
   end
 
   ## DONEPROC
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/65e24140-edea-46e5-b710-209af2016195
   defp decode_doneproc(<<tail::binary>>, collmetadata) do
     {{_, done}, tail, _} = decode_done(tail, collmetadata)
     {{:doneproc, done}, tail, collmetadata}
   end
 
   ## DONEINPROC
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/43e891c5-f7a1-432f-8f9f-233c4cd96afb
   defp decode_doneinproc(<<tail::binary>>, collmetadata) do
     {{_, done}, tail, _} = decode_done(tail, collmetadata)
     {{:doneinproc, done}, tail, collmetadata}
   end
 
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/490e563d-cc6e-4c86-bb95-ef0186b98032
   defp decode_loginack(
          <<
            _length::little-uint16(),

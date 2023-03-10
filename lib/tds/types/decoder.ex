@@ -116,17 +116,11 @@ defmodule Tds.Types.Decoder do
   @tds_plp_null 0xFFFFFFFFFFFFFFFF
   # @tds_plp_unknown 0xfffffffffffffffe
 
-  def decode(data) do
-    <<
-      _ord::little-unsigned-16,
-      length::size(8),
-      name::binary-size(length)-unit(16),
-      _status::size(8),
-      _usertype::size(32),
-      _flags::size(16),
-      data::binary
-    >> = data
-
+  # See https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/7091f6f6-b83d-4ed2-afeb-ba5013dfb18f
+  def decode(
+        <<_ord::ushort(), length::byte(), name::binary(length, 16), _status::byte(),
+          _usertype::long(), _flags::ushort(), data::binary>>
+      ) do
     name = UCS2.to_string(name)
 
     {type_info, tail} = decode_info(data)
