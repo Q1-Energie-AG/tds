@@ -114,12 +114,19 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  @doc """
-  Data Type Encoders
-  Encodes the COLMETADATA for the data type
-  """
-  def encode_data_type(%Parameter{type: type} = param) when type != nil do
+  def encode(%Tds.Parameter{name: name} = param) do
+    p_name = UCS2.from_string(name)
+    p_flags = param |> Parameter.option_flags()
+    {type_code, type_data, type_attr} = encode_data_type(param)
+
+    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
+
+    p_meta_data <> encode_data(type_code, param.value, type_attr)
+  end
+
+  defp encode_data_type(%Parameter{type: type} = param) do
     case type do
+      nil -> param |> Parameter.fix_data_type() |> encode_data_type()
       :boolean -> encode_binary_type(param)
       :binary -> encode_binary_type(param)
       :string -> encode_string_type(param)
@@ -138,18 +145,15 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_data_type(param),
-    do: param |> Parameter.fix_data_type() |> encode_data_type()
-
   # binary
-  def encode_data(@tds_data_type_bigvarbinary, value, attr)
-      when is_integer(value),
-      do: encode_data(@tds_data_type_bigvarbinary, <<value>>, attr)
+  defp encode_data(@tds_data_type_bigvarbinary, value, attr)
+       when is_integer(value),
+       do: encode_data(@tds_data_type_bigvarbinary, <<value>>, attr)
 
-  def encode_data(@tds_data_type_bigvarbinary, nil, _),
+  defp encode_data(@tds_data_type_bigvarbinary, nil, _),
     do: <<@tds_plp_null::little-unsigned-64>>
 
-  def encode_data(@tds_data_type_bigvarbinary, value, _) do
+  defp encode_data(@tds_data_type_bigvarbinary, value, _) do
     case byte_size(value) do
       # varbinary(max) gets encoded in chunks
       value_size when value_size > 8000 -> encode_plp(value)
@@ -158,10 +162,10 @@ defmodule Tds.Types.Encoder do
   end
 
   # string
-  def encode_data(@tds_data_type_nvarchar, nil, _),
+  defp encode_data(@tds_data_type_nvarchar, nil, _),
     do: <<@tds_plp_null::little-unsigned-64>>
 
-  def encode_data(@tds_data_type_nvarchar, value, _) do
+  defp encode_data(@tds_data_type_nvarchar, value, _) do
     value = UCS2.from_string(value)
     value_size = byte_size(value)
 
@@ -178,30 +182,30 @@ defmodule Tds.Types.Encoder do
   end
 
   # integers
-  def encode_data(_, value, _) when is_integer(value) do
+  defp encode_data(_, value, _) when is_integer(value) do
     size = int_type_size(value)
     <<size>> <> <<value::little-signed-size(size)-unit(8)>>
   end
 
-  def encode_data(@tds_data_type_intn, value, _) when value == nil do
+  defp encode_data(@tds_data_type_intn, value, _) when value == nil do
     <<0>>
   end
 
-  def encode_data(@tds_data_type_tinyint, value, _) when value == nil do
+  defp encode_data(@tds_data_type_tinyint, value, _) when value == nil do
     <<0>>
   end
 
   # float
-  def encode_data(@tds_data_type_floatn, nil, _) do
+  defp encode_data(@tds_data_type_floatn, nil, _) do
     <<0>>
   end
 
-  def encode_data(@tds_data_type_floatn, value, _) do
+  defp encode_data(@tds_data_type_floatn, value, _) do
     <<0x08, value::little-float-64>>
   end
 
   # decimal
-  def encode_data(@tds_data_type_decimaln, %Decimal{} = value, attr) do
+  defp encode_data(@tds_data_type_decimaln, %Decimal{} = value, attr) do
     Decimal.Context.update(&Map.put(&1, :precision, 38))
     precision = attr[:precision]
 
@@ -239,16 +243,16 @@ defmodule Tds.Types.Encoder do
     <<byte_len>> <> <<sign>> <> value_binary
   end
 
-  def encode_data(@tds_data_type_decimaln, nil, _),
+  defp encode_data(@tds_data_type_decimaln, nil, _),
     # <<0, 0, 0, 0>
     do: <<0x00::little-unsigned-32>>
 
-  def encode_data(@tds_data_type_decimaln = data_type, value, attr) do
+  defp encode_data(@tds_data_type_decimaln = data_type, value, attr) do
     encode_data(data_type, Decimal.new(value), attr)
   end
 
   # uuid
-  def encode_data(@tds_data_type_uniqueidentifier, value, _) do
+  defp encode_data(@tds_data_type_uniqueidentifier, value, _) do
     if value != nil do
       <<0x10>> <> encode_uuid(value)
     else
@@ -257,7 +261,7 @@ defmodule Tds.Types.Encoder do
   end
 
   # datetime
-  def encode_data(@tds_data_type_daten, value, _attr) do
+  defp encode_data(@tds_data_type_daten, value, _attr) do
     data = encode_date(value)
 
     if data == nil do
@@ -267,7 +271,7 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_data(@tds_data_type_timen, value, _attr) do
+  defp encode_data(@tds_data_type_timen, value, _attr) do
     # Logger.debug"encode_data_timen"
     {data, scale} = encode_time(value)
     # Logger.debug "#{inspect data}"
@@ -285,7 +289,7 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_data(@tds_data_type_datetimen, value, attr) do
+  defp encode_data(@tds_data_type_datetimen, value, attr) do
     # Logger.debug "dtn #{inspect attr}"
     data =
       case attr[:length] do
@@ -303,7 +307,7 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_data(@tds_data_type_datetime2n, value, _attr) do
+  defp encode_data(@tds_data_type_datetime2n, value, _attr) do
     # Logger.debug "EncodeData #{inspect value}"
     {data, scale} = encode_datetime2(value)
 
@@ -322,7 +326,7 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_data(@tds_data_type_datetimeoffsetn, value, _attr) do
+  defp encode_data(@tds_data_type_datetimeoffsetn, value, _attr) do
     # Logger.debug "encode_data_datetimeoffsetn #{inspect value}"
     data = encode_datetimeoffset(value)
 

@@ -31,12 +31,12 @@ defmodule DateTest do
         []
       )
 
-    assert nil == Types.Encoder.encode_datetime(nil)
+    assert <<0, 0, 40, 0>> == Types.Encoder.encode(%Parameter{value: nil, type: :date})
 
-    assert @date ==
-             @date
-             |> Types.Encoder.encode_date()
-             |> Types.Decoder.decode_date()
+    encoded = Types.Encoder.encode(%Parameter{value: @date, type: :date})
+
+    assert {%Parameter{value: @date, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(encoded))
 
     assert [[nil]] ==
              "SELECT CAST(NULL AS date)"

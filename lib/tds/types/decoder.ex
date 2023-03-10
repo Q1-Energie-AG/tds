@@ -117,8 +117,21 @@ defmodule Tds.Types.Decoder do
   # @tds_plp_unknown 0xfffffffffffffffe
 
   def decode(data) do
+    <<
+      _ord::little-unsigned-16,
+      length::size(8),
+      name::binary-size(length)-unit(16),
+      _status::size(8),
+      _usertype::size(32),
+      _flags::size(16),
+      data::binary
+    >> = data
+
+    name = UCS2.to_string(name)
+
     {type_info, tail} = decode_info(data)
-    decode_data(type_info, tail)
+    {value, tail} = decode_data(type_info, tail)
+    {%Tds.Parameter{name: name, value: value, direction: :output}, tail}
   end
 
   def decode_column(data) do

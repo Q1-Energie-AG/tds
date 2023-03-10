@@ -70,7 +70,7 @@ defmodule RPCTest do
 
       Enum.each(nums, fn num ->
         assert_raise(ArgumentError, fn ->
-          Tds.Types.Encoder.encode_data("@1", num, :integer)
+          Tds.Types.Encoder.encode(%Parameter{name: "@1", value: num, type: :integer})
         end)
       end)
     end

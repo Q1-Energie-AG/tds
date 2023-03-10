@@ -5,7 +5,6 @@ defmodule Tds.Messages do
   import Tds.Tokens, only: [decode_tokens: 1]
 
   alias Tds.Encoding.UCS2
-  alias Tds.Parameter
   alias Tds.Protocol.{Login7, Prelogin}
   alias Tds.Types
 
@@ -409,14 +408,8 @@ defmodule Tds.Messages do
     encode_rpc_params(tail, ret <> p)
   end
 
-  defp encode_rpc_param(%Tds.Parameter{name: name} = param) do
-    p_name = UCS2.from_string(name)
-    p_flags = param |> Parameter.option_flags()
-    {type_code, type_data, type_attr} = Types.Encoder.encode_data_type(param)
-
-    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
-
-    p_meta_data <> Types.Encoder.encode_data(type_code, param.value, type_attr)
+  defp encode_rpc_param(%Tds.Parameter{} = param) do
+    Types.Encoder.encode(param)
   end
 
   def encode_header(type, data, id, status) do

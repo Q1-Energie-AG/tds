@@ -72,19 +72,7 @@ defmodule Tds.Tokens do
   end
 
   defp decode_returnvalue(bin, collmetadata) do
-    <<
-      _ord::little-unsigned-16,
-      length::size(8),
-      name::binary-size(length)-unit(16),
-      _status::size(8),
-      _usertype::size(32),
-      _flags::size(16),
-      data::binary
-    >> = bin
-
-    name = UCS2.to_string(name)
-    {value, tail} = Tds.Types.Decoder.decode(data)
-    param = %Tds.Parameter{name: name, value: value, direction: :output}
+    {param, tail} = Types.Decoder.decode(bin)
     {{:returnvalue, param}, tail, collmetadata}
   end
 

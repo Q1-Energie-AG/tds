@@ -5,6 +5,20 @@ defmodule Tds.TestHelper do
 
   require Logger
 
+  def convert_to_server(
+        <<length::size(8), name::binary-size(length)-unit(16), _flags::size(8), data::binary>>
+      ) do
+    <<
+      0::little-unsigned-16,
+      length::size(8),
+      name::binary-size(length)-unit(16),
+      0::size(8),
+      0::size(32),
+      0::size(16),
+      data::binary
+    >>
+  end
+
   def opts do
     [
       hostname: System.get_env("SQL_HOSTNAME") || "127.0.0.1",

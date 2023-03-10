@@ -39,17 +39,17 @@ defmodule DatetimeTest do
         []
       )
 
-    assert nil == Types.Encoder.encode_datetime(nil)
+    assert <<0, 0, 111, 8, 0>> == Types.Encoder.encode(%Parameter{value: nil, type: :datetime})
 
-    assert {@date, {15, 16, 23, 0}} ==
-             @datetime
-             |> Types.Encoder.encode_datetime()
-             |> Types.Decoder.decode_datetime()
+    encoded = Types.Encoder.encode(%Parameter{value: @datetime, type: :datetime})
 
-    assert {@date, {15, 16, 23, 123}} ==
-             @datetime_us
-             |> Types.Encoder.encode_datetime()
-             |> Types.Decoder.decode_datetime()
+    assert {%Parameter{value: {@date, {15, 16, 23, 0}}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(encoded))
+
+    encoded = Types.Encoder.encode(%Parameter{value: @datetime_us, type: :datetime})
+
+    assert {%Parameter{value: {@date, {15, 16, 23, 123}}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(encoded))
 
     assert [[nil]] ==
              "SELECT CAST(NULL AS datetime)"
@@ -86,12 +86,13 @@ defmodule DatetimeTest do
   end
 
   test "smalldatetime", context do
-    assert nil == Types.Encoder.encode_smalldatetime(nil)
+    assert <<0, 0, 111, 4, 0>> ==
+             Types.Encoder.encode(%Parameter{value: nil, type: :smalldatetime})
 
-    assert {@date, {15, 16, 0, 0}} ==
-             @datetime
-             |> Types.Encoder.encode_smalldatetime()
-             |> Types.Decoder.decode_smalldatetime()
+    encoded = Types.Encoder.encode(%Parameter{value: @datetime, type: :smalldatetime})
+
+    assert {%Parameter{value: {@date, {15, 16, 0, 0}}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(encoded))
 
     assert [[nil]] ==
              "SELECT CAST(NULL AS smalldatetime)"
@@ -125,9 +126,11 @@ defmodule DatetimeTest do
   end
 
   test "date", context do
-    assert nil == Types.Encoder.encode_date(nil)
-    enc = Types.Encoder.encode_date(@date)
-    assert @date == Types.Decoder.decode_date(enc)
+    assert <<0, 0, 40, 0>> == Types.Encoder.encode(%Parameter{value: nil, type: :date})
+    enc = Types.Encoder.encode(%Parameter{value: @date, type: :date})
+
+    assert {%Parameter{value: @date, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(enc))
 
     assert [[nil]] == query("SELECT CAST(NULL AS date)", [])
     assert [[{2014, 06, 20}]] == query("SELECT CAST('20140620' AS date)", [])
@@ -144,16 +147,22 @@ defmodule DatetimeTest do
   end
 
   test "time", context do
-    assert {nil, 0} == Types.Encoder.encode_time(nil)
+    assert <<0, 0, 41, 7, 0>> == Types.Encoder.encode(%Parameter{value: nil, type: :time})
 
-    {bin, scale} = Types.Encoder.encode_time(@time)
-    assert {15, 16, 23, 0} == Types.Decoder.decode_time(scale, bin)
+    value = Types.Encoder.encode(%Parameter{value: @time, type: :time})
 
-    {bin, scale} = Types.Encoder.encode_time(@time_fsec, 7)
-    assert {15, 16, 23, 1_234_567} == Types.Decoder.decode_time(scale, bin)
+    assert {%Parameter{value: {15, 16, 23, 0}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(value))
 
-    {bin, scale} = Types.Encoder.encode_time(@time_us, 6)
-    assert {15, 16, 23, 123_456} == Types.Decoder.decode_time(scale, bin)
+    value = Types.Encoder.encode(%Parameter{value: @time_fsec, type: :time})
+
+    assert {%Parameter{value: {15, 16, 23, 1_234_567}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(value))
+
+    value = Types.Encoder.encode(%Parameter{value: @time_us, type: :time})
+
+    assert {%Parameter{value: {15, 16, 23, 123_456}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(value))
 
     assert [[nil]] == query("SELECT CAST(NULL AS time)", [])
     assert [[nil]] == query("SELECT CAST(NULL AS time(0))", [])
@@ -196,16 +205,22 @@ defmodule DatetimeTest do
   end
 
   test "datetime2", context do
-    assert {nil, 0} == Types.Encoder.encode_datetime2(nil)
+    assert <<0, 0, 42, 7, 0>> == Types.Encoder.encode(%Parameter{value: nil, type: :datetime2})
 
-    {dt, scale} = Types.Encoder.encode_datetime2(@datetime)
-    assert {@date, {15, 16, 23, 0}} == Types.Decoder.decode_datetime2(scale, dt)
+    dt = Types.Encoder.encode(%Parameter{value: @datetime, type: :datetime2})
 
-    {dt, scale} = Types.Encoder.encode_datetime2(@datetime_fsec)
-    assert @datetime_fsec == Types.Decoder.decode_datetime2(scale, dt)
+    assert {%Parameter{value: {@date, {15, 16, 23, 0}}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(dt))
 
-    {dt, scale} = Types.Encoder.encode_datetime2({@date, {131, 56, 23, 0}}, 0)
-    assert {@date, {131, 56, 23, 0}} == Types.Decoder.decode_datetime2(scale, dt)
+    dt = Types.Encoder.encode(%Parameter{value: @datetime_fsec, type: :datetime2})
+
+    assert {%Parameter{value: @datetime_fsec, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(dt))
+
+    dt = Types.Encoder.encode(%Parameter{value: {@date, {131, 56, 23, 0}}, type: :datetime2})
+
+    assert {%Parameter{value: {@date, {131, 56, 23, 0}}, direction: :output}, <<>>} ==
+             Types.Decoder.decode(convert_to_server(dt))
 
     assert [[nil]] == query("SELECT CAST(NULL AS datetime2)", [])
     assert [[nil]] == query("SELECT CAST(NULL AS datetime2(0))", [])

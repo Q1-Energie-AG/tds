@@ -73,7 +73,13 @@ defmodule DatetimeOffsetTest do
       assert [[^dt]] = query("SELECT CAST(#{str} AS datetimeoffset(7))", [])
     end)
 
-    assert nil == Types.Encoder.encode_datetimeoffset(nil)
+    assert <<0, 0, 43, 7, 0>> ==
+             Types.Encoder.encode(%Parameter{type: :datetimeoffset, value: nil})
+
+    preface = <<0::little-unsigned-16, 0::size(8), 0::size(8), 0::size(32)>>
+
+    assert {%Parameter{direction: :output, value: nil}, <<>>} ==
+             Types.Decoder.decode(preface <> <<0, 0, 43, 7, 0>>)
 
     assert [[nil]] == query("SELECT CAST(NULL AS datetimeoffset)", [])
     assert [[nil]] == query("SELECT CAST(NULL AS datetimeoffset(0))", [])
