@@ -114,17 +114,6 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_uuid(<<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> = string) do
-    raise ArgumentError,
-          "trying to load string UUID as Tds.Types.UUID: #{inspect(string)}. " <>
-            "Maybe you wanted to declare :uuid as your database field?"
-  end
-
-  def encode_uuid(<<_::128>> = bin), do: bin
-
-  def encode_uuid(any),
-    do: raise(ArgumentError, "Invalid uuid value #{inspect(any)}")
-
   @doc """
   Data Type Encoders
   Encodes the COLMETADATA for the data type
@@ -151,386 +140,6 @@ defmodule Tds.Types.Encoder do
 
   def encode_data_type(param),
     do: param |> Parameter.fix_data_type() |> encode_data_type()
-
-  def encode_binary_type(%Parameter{value: ""} = param) do
-    encode_string_type(param)
-  end
-
-  def encode_binary_type(%Parameter{value: value} = param)
-      when is_integer(value) do
-    %{param | value: <<value>>} |> encode_binary_type
-  end
-
-  def encode_binary_type(%Parameter{value: value}) do
-    length = length_for_binary(value)
-    type = @tds_data_type_bigvarbinary
-    data = <<type>> <> length
-    {type, data, []}
-  end
-
-  defp length_for_binary(nil), do: <<0xFF, 0xFF>>
-
-  defp length_for_binary(value) do
-    case byte_size(value) do
-      # varbinary(max)
-      value_size when value_size > 8000 -> <<0xFF, 0xFF>>
-      value_size -> <<value_size::little-unsigned-16>>
-    end
-  end
-
-  def encode_bit_type(%Parameter{}) do
-    type = @tds_data_type_bigvarbinary
-    data = <<type, 0x01>>
-    {type, data, []}
-  end
-
-  def encode_uuid_type(%Parameter{value: value}) do
-    length =
-      if is_nil(value) do
-        0x00
-      else
-        0x10
-      end
-
-    type = @tds_data_type_uniqueidentifier
-    data = <<type, length>>
-    {type, data, []}
-  end
-
-  def encode_string_type(%Parameter{value: value}) do
-    collation = <<0x00, 0x00, 0x00, 0x00, 0x00>>
-
-    length =
-      if value != nil do
-        value = value |> UCS2.from_string()
-        value_size = byte_size(value)
-
-        if value_size == 0 or value_size > 8000 do
-          <<0xFF, 0xFF>>
-        else
-          <<value_size::little-(2 * 8)>>
-        end
-      else
-        <<0xFF, 0xFF>>
-      end
-
-    type = @tds_data_type_nvarchar
-    data = <<type>> <> length <> collation
-    {type, data, [collation: collation]}
-  end
-
-  def encode_integer_type(%Parameter{value: value}) do
-    attributes = []
-    type = @tds_data_type_intn
-
-    length = int_type_size(value)
-    attributes = Keyword.put(attributes, :length, length)
-
-    {type, <<type, length>>, attributes}
-  end
-
-  def encode_decimal_type(%Parameter{value: nil} = param) do
-    encode_binary_type(param)
-  end
-
-  def encode_decimal_type(%Parameter{value: value}) do
-    Decimal.Context.update(&Map.put(&1, :precision, 38))
-
-    value_list =
-      value
-      |> Decimal.abs()
-      |> Decimal.to_string(:normal)
-      |> String.split(".")
-
-    {precision, scale} =
-      case value_list do
-        [p, s] ->
-          len = String.length(s)
-          {String.length(p) + len, len}
-
-        [p] ->
-          {String.length(p), 0}
-      end
-
-    value =
-      value
-      |> Decimal.abs()
-      |> Map.fetch!(:coef)
-      |> :binary.encode_unsigned(:little)
-
-    value_size = byte_size(value)
-
-    len =
-      cond do
-        precision <= 9 -> 4
-        precision <= 19 -> 8
-        precision <= 28 -> 12
-        precision <= 38 -> 16
-      end
-
-    padding = len - value_size
-    value_size = value_size + padding + 1
-
-    type = @tds_data_type_decimaln
-    data = <<type, value_size, precision, scale>>
-    {type, data, precision: precision, scale: scale}
-  end
-
-  def encode_float_type(%Parameter{value: nil} = param) do
-    encode_decimal_type(param)
-  end
-
-  def encode_float_type(%Parameter{value: value} = param)
-      when is_float(value) do
-    encode_float_type(%{param | value: Decimal.from_float(value)})
-  end
-
-  def encode_float_type(%Parameter{value: %Decimal{} = value}) do
-    d_ctx = Decimal.Context.get()
-    d_ctx = %{d_ctx | precision: 38}
-    Decimal.Context.set(d_ctx)
-
-    value_list =
-      value
-      |> Decimal.abs()
-      |> Decimal.to_string(:normal)
-      |> String.split(".")
-
-    {precision, scale} =
-      case value_list do
-        [p, s] ->
-          {String.length(p) + String.length(s), String.length(s)}
-
-        [p] ->
-          {String.length(p), 0}
-      end
-
-    dec_abs =
-      value
-      |> Decimal.abs()
-
-    value =
-      dec_abs.coef
-      |> :binary.encode_unsigned(:little)
-
-    value_size = byte_size(value)
-
-    # keep max precision
-    len = 8
-
-    padding = len - value_size
-    value_size = value_size + padding
-
-    type = @tds_data_type_floatn
-    data = <<type, value_size>>
-    {type, data, precision: precision, scale: scale}
-  end
-
-  @doc """
-  Creates the Parameter Descriptor for the selected type
-  """
-  def encode_param_descriptor(%Parameter{name: name, value: value, type: type} = param)
-      when type != nil do
-    desc =
-      case type do
-        :uuid ->
-          "uniqueidentifier"
-
-        :datetime ->
-          "datetime"
-
-        :datetime2 ->
-          case value do
-            %NaiveDateTime{microsecond: {_, scale}} ->
-              "datetime2(#{scale})"
-
-            _ ->
-              "datetime2"
-          end
-
-        :datetimeoffset ->
-          case value do
-            %DateTime{microsecond: {_, s}} ->
-              "datetimeoffset(#{s})"
-
-            _ ->
-              "datetimeoffset"
-          end
-
-        :date ->
-          "date"
-
-        :time ->
-          case value do
-            %Time{microsecond: {_, scale}} ->
-              "time(#{scale})"
-
-            _ ->
-              "time"
-          end
-
-        :smalldatetime ->
-          "smalldatetime"
-
-        :binary ->
-          encode_binary_descriptor(value)
-
-        :string ->
-          cond do
-            is_nil(value) -> "nvarchar(1)"
-            String.length(value) <= 0 -> "nvarchar(1)"
-            String.length(value) <= 2_000 -> "nvarchar(2000)"
-            true -> "nvarchar(max)"
-          end
-
-        :varchar ->
-          cond do
-            is_nil(value) -> "varchar(1)"
-            String.length(value) <= 0 -> "varchar(1)"
-            String.length(value) <= 2_000 -> "varchar(2000)"
-            true -> "varchar(max)"
-          end
-
-        :integer ->
-          case value do
-            0 ->
-              "int"
-
-            val when val >= 1 ->
-              "bigint"
-
-            _ ->
-              precision =
-                value
-                |> Integer.to_string()
-                |> String.length()
-
-              "decimal(#{precision - 1}, 0)"
-          end
-
-        :bigint ->
-          "bigint"
-
-        :decimal ->
-          encode_decimal_descriptor(param)
-
-        :numeric ->
-          encode_decimal_descriptor(param)
-
-        :float ->
-          encode_float_descriptor(param)
-
-        :boolean ->
-          "bit"
-
-        _ ->
-          # this should fix issues when column is varchar but parameter
-          # is threated as nvarchar(..) since nothing defines parameter
-          # as varchar.
-          latin1 = :unicode.characters_to_list(value || "", :latin1)
-          utf8 = :unicode.characters_to_list(value || "", :utf8)
-
-          db_type =
-            if latin1 == utf8,
-              do: "varchar",
-              else: "nvarchar"
-
-          # this is same .net driver uses in order to avoid too many
-          # cached execution plans, it must be always same length otherwise it will
-          # use too much memory in sql server to cache each plan per param size
-          cond do
-            is_nil(value) -> "#{db_type}(1)"
-            String.length(value) <= 0 -> "#{db_type}(1)"
-            String.length(value) <= 2_000 -> "#{db_type}(2000)"
-            true -> "#{db_type}(max)"
-          end
-      end
-
-    "#{name} #{desc}"
-  end
-
-  # nil
-  def encode_param_descriptor(param),
-    do: param |> Parameter.fix_data_type() |> encode_param_descriptor()
-
-  @doc """
-  Decimal Type Parameter Descriptor
-  """
-  def encode_decimal_descriptor(%Parameter{value: nil}),
-    do: encode_binary_descriptor(nil)
-
-  def encode_decimal_descriptor(%Parameter{value: value} = param)
-      when is_float(value) do
-    encode_decimal_descriptor(%{param | value: Decimal.from_float(value)})
-  end
-
-  def encode_decimal_descriptor(%Parameter{value: value} = param)
-      when is_binary(value) or is_integer(value) do
-    encode_decimal_descriptor(%{param | value: Decimal.new(value)})
-  end
-
-  def encode_decimal_descriptor(%Parameter{value: %Decimal{} = dec}) do
-    Decimal.Context.update(&Map.put(&1, :precision, 38))
-
-    value_list =
-      dec
-      |> Decimal.abs()
-      |> Decimal.to_string(:normal)
-      |> String.split(".")
-
-    {precision, scale} =
-      case value_list do
-        [p, s] ->
-          {String.length(p) + String.length(s), String.length(s)}
-
-        [p] ->
-          {String.length(p), 0}
-      end
-
-    "decimal(#{precision}, #{scale})"
-  end
-
-  # Decimal.new/0 is undefined -- modifying params to hopefully fix
-  def encode_decimal_descriptor(%Parameter{type: :decimal, value: value} = param) do
-    encode_decimal_descriptor(%{param | value: Decimal.new(value)})
-  end
-
-  @doc """
-  Float Type Parameter Descriptor
-  """
-  def encode_float_descriptor(%Parameter{value: nil}), do: "decimal(1,0)"
-
-  def encode_float_descriptor(%Parameter{value: value} = param)
-      when is_float(value) do
-    param
-    |> Map.put(:value, Decimal.from_float(value))
-    |> encode_float_descriptor
-  end
-
-  def encode_float_descriptor(%Parameter{value: %Decimal{}}), do: "float(53)"
-
-  @doc """
-  Binary Type Parameter Descriptor
-  """
-  def encode_binary_descriptor(value) when is_integer(value),
-    do: encode_binary_descriptor(<<value>>)
-
-  def encode_binary_descriptor(value) when is_nil(value), do: "varbinary(1)"
-
-  def encode_binary_descriptor(value) when byte_size(value) <= 0,
-    do: "varbinary(1)"
-
-  def encode_binary_descriptor(value) when byte_size(value) > 0,
-    do: "varbinary(max)"
-
-  # def encode_binary_descriptor(value) when byte_size(value) > 8_000,
-  #   do: "varbinary(max)"
-
-  # def encode_binary_descriptor(value), do: "varbinary(#{byte_size(value)})"
-
-  @doc """
-  Data encoding
-  """
 
   # binary
   def encode_data(@tds_data_type_bigvarbinary, value, attr)
@@ -733,16 +342,394 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_plp(data) do
+  @doc """
+  Creates the Parameter Descriptor for the selected type
+  """
+  def encode_param_descriptor(%Parameter{name: name, value: value, type: type} = param)
+      when type != nil do
+    desc =
+      case type do
+        :uuid ->
+          "uniqueidentifier"
+
+        :datetime ->
+          "datetime"
+
+        :datetime2 ->
+          case value do
+            %NaiveDateTime{microsecond: {_, scale}} ->
+              "datetime2(#{scale})"
+
+            _ ->
+              "datetime2"
+          end
+
+        :datetimeoffset ->
+          case value do
+            %DateTime{microsecond: {_, s}} ->
+              "datetimeoffset(#{s})"
+
+            _ ->
+              "datetimeoffset"
+          end
+
+        :date ->
+          "date"
+
+        :time ->
+          case value do
+            %Time{microsecond: {_, scale}} ->
+              "time(#{scale})"
+
+            _ ->
+              "time"
+          end
+
+        :smalldatetime ->
+          "smalldatetime"
+
+        :binary ->
+          encode_binary_descriptor(value)
+
+        :string ->
+          cond do
+            is_nil(value) -> "nvarchar(1)"
+            String.length(value) <= 0 -> "nvarchar(1)"
+            String.length(value) <= 2_000 -> "nvarchar(2000)"
+            true -> "nvarchar(max)"
+          end
+
+        :varchar ->
+          cond do
+            is_nil(value) -> "varchar(1)"
+            String.length(value) <= 0 -> "varchar(1)"
+            String.length(value) <= 2_000 -> "varchar(2000)"
+            true -> "varchar(max)"
+          end
+
+        :integer ->
+          case value do
+            0 ->
+              "int"
+
+            val when val >= 1 ->
+              "bigint"
+
+            _ ->
+              precision =
+                value
+                |> Integer.to_string()
+                |> String.length()
+
+              "decimal(#{precision - 1}, 0)"
+          end
+
+        :bigint ->
+          "bigint"
+
+        :decimal ->
+          encode_decimal_descriptor(param)
+
+        :numeric ->
+          encode_decimal_descriptor(param)
+
+        :float ->
+          encode_float_descriptor(param)
+
+        :boolean ->
+          "bit"
+
+        _ ->
+          # this should fix issues when column is varchar but parameter
+          # is threated as nvarchar(..) since nothing defines parameter
+          # as varchar.
+          latin1 = :unicode.characters_to_list(value || "", :latin1)
+          utf8 = :unicode.characters_to_list(value || "", :utf8)
+
+          db_type =
+            if latin1 == utf8,
+              do: "varchar",
+              else: "nvarchar"
+
+          # this is same .net driver uses in order to avoid too many
+          # cached execution plans, it must be always same length otherwise it will
+          # use too much memory in sql server to cache each plan per param size
+          cond do
+            is_nil(value) -> "#{db_type}(1)"
+            String.length(value) <= 0 -> "#{db_type}(1)"
+            String.length(value) <= 2_000 -> "#{db_type}(2000)"
+            true -> "#{db_type}(max)"
+          end
+      end
+
+    "#{name} #{desc}"
+  end
+
+  # nil
+  def encode_param_descriptor(param),
+    do: param |> Parameter.fix_data_type() |> encode_param_descriptor()
+
+  defp encode_uuid(<<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> = string) do
+    raise ArgumentError,
+          "trying to load string UUID as Tds.Types.UUID: #{inspect(string)}. " <>
+            "Maybe you wanted to declare :uuid as your database field?"
+  end
+
+  defp encode_uuid(<<_::128>> = bin), do: bin
+
+  defp encode_uuid(any),
+    do: raise(ArgumentError, "Invalid uuid value #{inspect(any)}")
+
+  defp encode_binary_type(%Parameter{value: ""} = param) do
+    encode_string_type(param)
+  end
+
+  defp encode_binary_type(%Parameter{value: value} = param)
+       when is_integer(value) do
+    %{param | value: <<value>>} |> encode_binary_type
+  end
+
+  defp encode_binary_type(%Parameter{value: value}) do
+    length = length_for_binary(value)
+    type = @tds_data_type_bigvarbinary
+    data = <<type>> <> length
+    {type, data, []}
+  end
+
+  defp length_for_binary(nil), do: <<0xFF, 0xFF>>
+
+  defp length_for_binary(value) do
+    case byte_size(value) do
+      # varbinary(max)
+      value_size when value_size > 8000 -> <<0xFF, 0xFF>>
+      value_size -> <<value_size::little-unsigned-16>>
+    end
+  end
+
+  # defp encode_bit_type(%Parameter{}) do
+  #   type = @tds_data_type_bigvarbinary
+  #   data = <<type, 0x01>>
+  #   {type, data, []}
+  # end
+
+  defp encode_uuid_type(%Parameter{value: value}) do
+    length =
+      if is_nil(value) do
+        0x00
+      else
+        0x10
+      end
+
+    type = @tds_data_type_uniqueidentifier
+    data = <<type, length>>
+    {type, data, []}
+  end
+
+  defp encode_string_type(%Parameter{value: value}) do
+    collation = <<0x00, 0x00, 0x00, 0x00, 0x00>>
+
+    length =
+      if value != nil do
+        value = value |> UCS2.from_string()
+        value_size = byte_size(value)
+
+        if value_size == 0 or value_size > 8000 do
+          <<0xFF, 0xFF>>
+        else
+          <<value_size::little-(2 * 8)>>
+        end
+      else
+        <<0xFF, 0xFF>>
+      end
+
+    type = @tds_data_type_nvarchar
+    data = <<type>> <> length <> collation
+    {type, data, [collation: collation]}
+  end
+
+  defp encode_integer_type(%Parameter{value: value}) do
+    attributes = []
+    type = @tds_data_type_intn
+
+    length = int_type_size(value)
+    attributes = Keyword.put(attributes, :length, length)
+
+    {type, <<type, length>>, attributes}
+  end
+
+  defp encode_decimal_type(%Parameter{value: nil} = param) do
+    encode_binary_type(param)
+  end
+
+  defp encode_decimal_type(%Parameter{value: value}) do
+    Decimal.Context.update(&Map.put(&1, :precision, 38))
+
+    value_list =
+      value
+      |> Decimal.abs()
+      |> Decimal.to_string(:normal)
+      |> String.split(".")
+
+    {precision, scale} =
+      case value_list do
+        [p, s] ->
+          len = String.length(s)
+          {String.length(p) + len, len}
+
+        [p] ->
+          {String.length(p), 0}
+      end
+
+    value =
+      value
+      |> Decimal.abs()
+      |> Map.fetch!(:coef)
+      |> :binary.encode_unsigned(:little)
+
+    value_size = byte_size(value)
+
+    len =
+      cond do
+        precision <= 9 -> 4
+        precision <= 19 -> 8
+        precision <= 28 -> 12
+        precision <= 38 -> 16
+      end
+
+    padding = len - value_size
+    value_size = value_size + padding + 1
+
+    type = @tds_data_type_decimaln
+    data = <<type, value_size, precision, scale>>
+    {type, data, precision: precision, scale: scale}
+  end
+
+  defp encode_float_type(%Parameter{value: nil} = param) do
+    encode_decimal_type(param)
+  end
+
+  defp encode_float_type(%Parameter{value: value} = param)
+       when is_float(value) do
+    encode_float_type(%{param | value: Decimal.from_float(value)})
+  end
+
+  defp encode_float_type(%Parameter{value: %Decimal{} = value}) do
+    d_ctx = Decimal.Context.get()
+    d_ctx = %{d_ctx | precision: 38}
+    Decimal.Context.set(d_ctx)
+
+    value_list =
+      value
+      |> Decimal.abs()
+      |> Decimal.to_string(:normal)
+      |> String.split(".")
+
+    {precision, scale} =
+      case value_list do
+        [p, s] ->
+          {String.length(p) + String.length(s), String.length(s)}
+
+        [p] ->
+          {String.length(p), 0}
+      end
+
+    dec_abs =
+      value
+      |> Decimal.abs()
+
+    value =
+      dec_abs.coef
+      |> :binary.encode_unsigned(:little)
+
+    value_size = byte_size(value)
+
+    # keep max precision
+    len = 8
+
+    padding = len - value_size
+    value_size = value_size + padding
+
+    type = @tds_data_type_floatn
+    data = <<type, value_size>>
+    {type, data, precision: precision, scale: scale}
+  end
+
+  defp encode_decimal_descriptor(%Parameter{value: nil}),
+    do: encode_binary_descriptor(nil)
+
+  defp encode_decimal_descriptor(%Parameter{value: value} = param)
+       when is_float(value) do
+    encode_decimal_descriptor(%{param | value: Decimal.from_float(value)})
+  end
+
+  defp encode_decimal_descriptor(%Parameter{value: value} = param)
+       when is_binary(value) or is_integer(value) do
+    encode_decimal_descriptor(%{param | value: Decimal.new(value)})
+  end
+
+  defp encode_decimal_descriptor(%Parameter{value: %Decimal{} = dec}) do
+    Decimal.Context.update(&Map.put(&1, :precision, 38))
+
+    value_list =
+      dec
+      |> Decimal.abs()
+      |> Decimal.to_string(:normal)
+      |> String.split(".")
+
+    {precision, scale} =
+      case value_list do
+        [p, s] ->
+          {String.length(p) + String.length(s), String.length(s)}
+
+        [p] ->
+          {String.length(p), 0}
+      end
+
+    "decimal(#{precision}, #{scale})"
+  end
+
+  # Decimal.new/0 is undefined -- modifying params to hopefully fix
+  defp encode_decimal_descriptor(%Parameter{type: :decimal, value: value} = param) do
+    encode_decimal_descriptor(%{param | value: Decimal.new(value)})
+  end
+
+  defp encode_float_descriptor(%Parameter{value: nil}), do: "decimal(1,0)"
+
+  defp encode_float_descriptor(%Parameter{value: value} = param)
+       when is_float(value) do
+    param
+    |> Map.put(:value, Decimal.from_float(value))
+    |> encode_float_descriptor
+  end
+
+  defp encode_float_descriptor(%Parameter{value: %Decimal{}}), do: "float(53)"
+
+  defp encode_binary_descriptor(value) when is_integer(value),
+    do: encode_binary_descriptor(<<value>>)
+
+  defp encode_binary_descriptor(value) when is_nil(value), do: "varbinary(1)"
+
+  defp encode_binary_descriptor(value) when byte_size(value) <= 0,
+    do: "varbinary(1)"
+
+  defp encode_binary_descriptor(value) when byte_size(value) > 0,
+    do: "varbinary(max)"
+
+  # def encode_binary_descriptor(value) when byte_size(value) > 8_000,
+  #   do: "varbinary(max)"
+
+  # def encode_binary_descriptor(value), do: "varbinary(#{byte_size(value)})"
+
+  defp encode_plp(data) do
     size = byte_size(data)
 
     <<size::little-unsigned-64>> <>
       encode_plp_chunk(size, data, <<>>) <> <<0x00::little-unsigned-32>>
   end
 
-  def encode_plp_chunk(0, _, buf), do: buf
+  defp encode_plp_chunk(0, _, buf), do: buf
 
-  def encode_plp_chunk(size, data, buf) do
+  defp encode_plp_chunk(size, data, buf) do
     <<_t::unsigned-32, chunk_size::unsigned-32>> = <<size::unsigned-64>>
     <<chunk::binary-size(chunk_size), data::binary>> = data
     plp = <<chunk_size::little-unsigned-32>> <> chunk
@@ -768,45 +755,45 @@ defmodule Tds.Types.Encoder do
 
   # Date
 
-  def encode_date(nil), do: nil
+  defp encode_date(nil), do: nil
 
-  def encode_date(%Date{} = date), do: date |> Date.to_erl() |> encode_date()
+  defp encode_date(%Date{} = date), do: date |> Date.to_erl() |> encode_date()
 
-  def encode_date(date) do
+  defp encode_date(date) do
     days = :calendar.date_to_gregorian_days(date) - 366
     <<days::little-24>>
   end
 
-  def encode_smalldatetime(nil), do: nil
+  defp encode_smalldatetime(nil), do: nil
 
-  def encode_smalldatetime({date, {hour, min, _}}),
+  defp encode_smalldatetime({date, {hour, min, _}}),
     do: encode_smalldatetime({date, {hour, min, 0, 0}})
 
-  def encode_smalldatetime({date, {hour, min, _, _}}) do
+  defp encode_smalldatetime({date, {hour, min, _, _}}) do
     days = :calendar.date_to_gregorian_days(date) - @year_1900_days
     mins = hour * 60 + min
     encode_smalldatetime(days, mins)
   end
 
-  def encode_smalldatetime(days, mins) do
+  defp encode_smalldatetime(days, mins) do
     <<days::little-unsigned-16, mins::little-unsigned-16>>
   end
 
-  def encode_datetime(nil), do: nil
+  defp encode_datetime(nil), do: nil
 
-  def encode_datetime(%DateTime{} = dt),
+  defp encode_datetime(%DateTime{} = dt),
     do: encode_datetime(DateTime.to_naive(dt))
 
-  def encode_datetime(%NaiveDateTime{} = dt) do
+  defp encode_datetime(%NaiveDateTime{} = dt) do
     {date, {h, m, s}} = NaiveDateTime.to_erl(dt)
     {msec, _} = dt.microsecond
     encode_datetime({date, {h, m, s, msec}})
   end
 
-  def encode_datetime({date, {h, m, s}}),
+  defp encode_datetime({date, {h, m, s}}),
     do: encode_datetime({date, {h, m, s, 0}})
 
-  def encode_datetime({date, {h, m, s, us}}) do
+  defp encode_datetime({date, {h, m, s, us}}) do
     days = :calendar.date_to_gregorian_days(date) - @year_1900_days
     milliseconds = ((h * 60 + m) * 60 + s) * 1_000 + us / 1_000
 
@@ -830,11 +817,11 @@ defmodule Tds.Types.Encoder do
   # 3 bytes if 0 <= n < = 2.
   # 4 bytes if 3 <= n < = 4.
   # 5 bytes if 5 <= n < = 7.
-  def encode_time(nil), do: {nil, 0}
+  defp encode_time(nil), do: {nil, 0}
 
-  def encode_time({h, m, s}), do: encode_time({h, m, s, 0})
+  defp encode_time({h, m, s}), do: encode_time({h, m, s, 0})
 
-  def encode_time(%Time{} = t) do
+  defp encode_time(%Time{} = t) do
     {h, m, s} = Time.to_erl(t)
     {_, scale} = t.microsecond
     # fix ms
@@ -843,11 +830,11 @@ defmodule Tds.Types.Encoder do
     encode_time({h, m, s, fsec}, scale)
   end
 
-  def encode_time(time), do: encode_time(time, @max_time_scale)
+  defp encode_time(time), do: encode_time(time, @max_time_scale)
 
-  def encode_time({h, m, s}, scale), do: encode_time({h, m, s, 0}, scale)
+  defp encode_time({h, m, s}, scale), do: encode_time({h, m, s, 0}, scale)
 
-  def encode_time({hour, min, sec, fsec}, scale) do
+  defp encode_time({hour, min, sec, fsec}, scale) do
     # 10^scale fs in 1 sec
     fs_per_sec = trunc(:math.pow(10, scale))
 
@@ -874,39 +861,39 @@ defmodule Tds.Types.Encoder do
   defp microsecond_to_fsec({us, scale}),
     do: trunc(us / :math.pow(10, 6 - scale))
 
-  def encode_datetime2(value, scale \\ @max_time_scale)
-  def encode_datetime2(nil, _), do: {nil, 0}
+  defp encode_datetime2(value, scale \\ @max_time_scale)
+  defp encode_datetime2(nil, _), do: {nil, 0}
 
-  def encode_datetime2({date, time}, scale) do
+  defp encode_datetime2({date, time}, scale) do
     {time, scale} = encode_time(time, scale)
     date = encode_date(date)
     {time <> date, scale}
   end
 
-  def encode_datetime2(%NaiveDateTime{} = value, _scale) do
+  defp encode_datetime2(%NaiveDateTime{} = value, _scale) do
     t = NaiveDateTime.to_time(value)
     {time, scale} = encode_time(t)
     date = encode_date(NaiveDateTime.to_date(value))
     {time <> date, scale}
   end
 
-  def encode_datetime2(value, scale) do
+  defp encode_datetime2(value, scale) do
     raise ArgumentError,
           "value #{inspect(value)} with scale #{inspect(scale)} is not supported DateTime2 value"
   end
 
-  def encode_datetimeoffset(datetimetz, scale \\ @max_time_scale)
-  def encode_datetimeoffset(nil, _), do: nil
+  defp encode_datetimeoffset(datetimetz, scale \\ @max_time_scale)
+  defp encode_datetimeoffset(nil, _), do: nil
 
-  def encode_datetimeoffset({date, time, offset_min}, scale) do
+  defp encode_datetimeoffset({date, time, offset_min}, scale) do
     {datetime, _ignore_always_10bytes} = encode_datetime2({date, time}, scale)
     datetime <> <<offset_min::little-signed-16>>
   end
 
-  def encode_datetimeoffset(
-        %DateTime{utc_offset: offset} = dt,
-        scale
-      ) do
+  defp encode_datetimeoffset(
+         %DateTime{utc_offset: offset} = dt,
+         scale
+       ) do
     {datetime, _} =
       dt
       |> DateTime.add(-offset)
@@ -918,27 +905,27 @@ defmodule Tds.Types.Encoder do
     datetime <> <<offset_min::little-signed-16>>
   end
 
-  def encode_datetime_type(%Parameter{}) do
+  defp encode_datetime_type(%Parameter{}) do
     # Logger.debug "encode_datetime_type"
     type = @tds_data_type_datetimen
     data = <<type, 0x08>>
     {type, data, length: 8}
   end
 
-  def encode_smalldatetime_type(%Parameter{}) do
+  defp encode_smalldatetime_type(%Parameter{}) do
     # Logger.debug "encode_smalldatetime_type"
     type = @tds_data_type_datetimen
     data = <<type, 0x04>>
     {type, data, length: 4}
   end
 
-  def encode_date_type(%Parameter{}) do
+  defp encode_date_type(%Parameter{}) do
     type = @tds_data_type_daten
     data = <<type>>
     {type, data, []}
   end
 
-  def encode_time_type(%Parameter{value: value}) do
+  defp encode_time_type(%Parameter{value: value}) do
     # Logger.debug "encode_time_type"
     type = @tds_data_type_timen
 
@@ -961,30 +948,30 @@ defmodule Tds.Types.Encoder do
     end
   end
 
-  def encode_datetime2_type(%Parameter{
-        value: %NaiveDateTime{microsecond: {_, s}}
-      }) do
+  defp encode_datetime2_type(%Parameter{
+         value: %NaiveDateTime{microsecond: {_, s}}
+       }) do
     type = @tds_data_type_datetime2n
     data = <<type, s>>
     {type, data, scale: s}
   end
 
-  def encode_datetime2_type(%Parameter{}) do
+  defp encode_datetime2_type(%Parameter{}) do
     # Logger.debug "encode_datetime2_type"
     type = @tds_data_type_datetime2n
     data = <<type, 0x07>>
     {type, data, scale: 7}
   end
 
-  def encode_datetimeoffset_type(%Parameter{
-        value: %DateTime{microsecond: {_, s}}
-      }) do
+  defp encode_datetimeoffset_type(%Parameter{
+         value: %DateTime{microsecond: {_, s}}
+       }) do
     type = @tds_data_type_datetimeoffsetn
     data = <<type, s>>
     {type, data, scale: s}
   end
 
-  def encode_datetimeoffset_type(%Parameter{}) do
+  defp encode_datetimeoffset_type(%Parameter{}) do
     type = @tds_data_type_datetimeoffsetn
     data = <<type, 0x07>>
     {type, data, scale: 7}

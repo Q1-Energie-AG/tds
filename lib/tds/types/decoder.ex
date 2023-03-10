@@ -1,9 +1,11 @@
 defmodule Tds.Types.Decoder do
+  @moduledoc """
+  Decoder for TDS data types
+  """
   import Tds.BinaryUtils
   import Tds.Utils
 
   alias Tds.Encoding.UCS2
-
 
   @year_1900_days :calendar.date_to_gregorian_days({1900, 1, 1})
   @secs_in_min 60
@@ -126,7 +128,249 @@ defmodule Tds.Types.Decoder do
     {Map.put(type_info, :name, name), tail}
   end
 
-  def to_atom(token) do
+  def decode_data(
+        %{data_type: :fixed, data_type_code: data_type_code, length: length},
+        <<tail::binary>>
+      ) do
+    <<value_binary::binary-size(length)-unit(8), tail::binary>> = tail
+
+    value =
+      case data_type_code do
+        @tds_data_type_null ->
+          nil
+
+        @tds_data_type_bit ->
+          value_binary != <<0x00>>
+
+        @tds_data_type_smalldatetime ->
+          decode_smalldatetime(value_binary)
+
+        @tds_data_type_smallmoney ->
+          decode_smallmoney(value_binary)
+
+        @tds_data_type_real ->
+          <<val::little-float-32>> = value_binary
+          Float.round(val, 4)
+
+        @tds_data_type_datetime ->
+          decode_datetime(value_binary)
+
+        @tds_data_type_float ->
+          <<val::little-float-64>> = value_binary
+          Float.round(val, 8)
+
+        @tds_data_type_money ->
+          decode_money(value_binary)
+
+        _ ->
+          <<val::little-signed-size(length)-unit(8)>> = value_binary
+          val
+      end
+
+    {value, tail}
+  end
+
+  # ByteLength Types
+  def decode_data(%{data_reader: :bytelen}, <<0x00, tail::binary>>),
+    do: {nil, tail}
+
+  def decode_data(
+        %{
+          data_type_code: data_type_code,
+          data_reader: :bytelen,
+          length: length
+        } = data_info,
+        <<size::unsigned-8, data::binary-size(size), tail::binary>>
+      ) do
+    value =
+      cond do
+        data_type_code == @tds_data_type_daten ->
+          decode_date(data)
+
+        data_type_code == @tds_data_type_timen ->
+          decode_time(data_info[:scale], data)
+
+        data_type_code == @tds_data_type_datetime2n ->
+          decode_datetime2(data_info[:scale], data)
+
+        data_type_code == @tds_data_type_datetimeoffsetn ->
+          decode_datetimeoffset(data_info[:scale], data)
+
+        data_type_code == @tds_data_type_uniqueidentifier ->
+          decode_uuid(:binary.copy(data))
+
+        data_type_code == @tds_data_type_intn ->
+          case length do
+            1 ->
+              <<val::unsigned-8, _tail::binary>> = data
+              val
+
+            2 ->
+              <<val::little-signed-16, _tail::binary>> = data
+              val
+
+            4 ->
+              <<val::little-signed-32, _tail::binary>> = data
+              val
+
+            8 ->
+              <<val::little-signed-64, _tail::binary>> = data
+              val
+          end
+
+        data_type_code in [
+          @tds_data_type_decimal,
+          @tds_data_type_numeric,
+          @tds_data_type_decimaln,
+          @tds_data_type_numericn
+        ] ->
+          decode_decimal(data_info[:precision], data_info[:scale], data)
+
+        data_type_code == @tds_data_type_bitn ->
+          data != <<0x00>>
+
+        data_type_code == @tds_data_type_floatn ->
+          data = data <> tail
+          len = length * 8
+          <<val::little-float-size(len), _::binary>> = data
+          val
+
+        data_type_code == @tds_data_type_moneyn ->
+          case length do
+            4 -> decode_smallmoney(data)
+            8 -> decode_money(data)
+          end
+
+        data_type_code == @tds_data_type_datetimen ->
+          case length do
+            4 -> decode_smalldatetime(data)
+            8 -> decode_datetime(data)
+          end
+
+        data_type_code in [
+          @tds_data_type_char,
+          @tds_data_type_varchar
+        ] ->
+          decode_char(data_info, data)
+
+        data_type_code in [
+          @tds_data_type_binary,
+          @tds_data_type_varbinary
+        ] ->
+          :binary.copy(data)
+      end
+
+    {value, tail}
+  end
+
+  # ShortLength Types
+  def decode_data(%{data_reader: :shortlen}, <<0xFF, 0xFF, tail::binary>>),
+    do: {nil, tail}
+
+  def decode_data(
+        %{data_type_code: data_type_code, data_reader: :shortlen} = data_info,
+        <<size::little-unsigned-16, data::binary-size(size), tail::binary>>
+      ) do
+    value =
+      cond do
+        data_type_code in [
+          @tds_data_type_bigvarchar,
+          @tds_data_type_bigchar
+        ] ->
+          decode_char(data_info, data)
+
+        data_type_code in [
+          @tds_data_type_bigvarbinary,
+          @tds_data_type_bigbinary
+        ] ->
+          :binary.copy(data)
+
+        data_type_code in [
+          @tds_data_type_nvarchar,
+          @tds_data_type_nchar
+        ] ->
+          decode_nchar(data_info, data)
+
+        data_type_code == @tds_data_type_udt ->
+          decode_udt(data_info, :binary.copy(data))
+      end
+
+    {value, tail}
+  end
+
+  def decode_data(%{data_reader: :longlen}, <<0x00, tail::binary>>),
+    do: {nil, tail}
+
+  def decode_data(
+        %{data_type_code: data_type_code, data_reader: :longlen} = data_info,
+        <<
+          text_ptr_size::unsigned-8,
+          _text_ptr::size(text_ptr_size)-unit(8),
+          _timestamp::unsigned-64,
+          size::little-signed-32,
+          data::binary-size(size)-unit(8),
+          tail::binary
+        >>
+      ) do
+    value =
+      case data_type_code do
+        @tds_data_type_text -> decode_char(data_info, data)
+        @tds_data_type_ntext -> decode_nchar(data_info, data)
+        @tds_data_type_image -> :binary.copy(data)
+        _ -> nil
+      end
+
+    {value, tail}
+  end
+
+  # TODO Variant Types
+
+  def decode_data(%{data_reader: :plp}, <<
+        @tds_plp_null::little-unsigned-64,
+        tail::binary
+      >>),
+      do: {nil, tail}
+
+  def decode_data(
+        %{data_type_code: data_type_code, data_reader: :plp} = data_info,
+        <<_size::little-unsigned-64, tail::binary>>
+      ) do
+    {data, tail} = decode_plp_chunk(tail, <<>>)
+
+    value =
+      cond do
+        data_type_code == @tds_data_type_xml ->
+          decode_xml(data_info, data)
+
+        data_type_code in [
+          @tds_data_type_bigvarchar,
+          @tds_data_type_bigchar,
+          @tds_data_type_text
+        ] ->
+          decode_char(data_info, data)
+
+        data_type_code in [
+          @tds_data_type_bigvarbinary,
+          @tds_data_type_bigbinary,
+          @tds_data_type_image
+        ] ->
+          data
+
+        data_type_code in [
+          @tds_data_type_nvarchar,
+          @tds_data_type_nchar,
+          @tds_data_type_ntext
+        ] ->
+          decode_nchar(data_info, data)
+
+        data_type_code == @tds_data_type_udt ->
+          decode_udt(data_info, data)
+      end
+
+    {value, tail}
+  end
+
+  defp to_atom(token) do
     case token do
       @tds_data_type_null -> :null
       @tds_data_type_tinyint -> :tinyint
@@ -409,278 +653,37 @@ defmodule Tds.Types.Decoder do
   #
   #  Data Decoders
   #
-  def decode_data(
-        %{data_type: :fixed, data_type_code: data_type_code, length: length},
-        <<tail::binary>>
-      ) do
-    <<value_binary::binary-size(length)-unit(8), tail::binary>> = tail
 
-    value =
-      case data_type_code do
-        @tds_data_type_null ->
-          nil
+  defp decode_plp_chunk(<<0::little-unsigned-32, tail::binary>>, buf), do: {buf, tail}
 
-        @tds_data_type_bit ->
-          value_binary != <<0x00>>
-
-        @tds_data_type_smalldatetime ->
-          decode_smalldatetime(value_binary)
-
-        @tds_data_type_smallmoney ->
-          decode_smallmoney(value_binary)
-
-        @tds_data_type_real ->
-          <<val::little-float-32>> = value_binary
-          Float.round(val, 4)
-
-        @tds_data_type_datetime ->
-          decode_datetime(value_binary)
-
-        @tds_data_type_float ->
-          <<val::little-float-64>> = value_binary
-          Float.round(val, 8)
-
-        @tds_data_type_money ->
-          decode_money(value_binary)
-
-        _ ->
-          <<val::little-signed-size(length)-unit(8)>> = value_binary
-          val
-      end
-
-    {value, tail}
-  end
-
-  # ByteLength Types
-  def decode_data(%{data_reader: :bytelen}, <<0x00, tail::binary>>),
-    do: {nil, tail}
-
-  def decode_data(
-        %{
-          data_type_code: data_type_code,
-          data_reader: :bytelen,
-          length: length
-        } = data_info,
-        <<size::unsigned-8, data::binary-size(size), tail::binary>>
-      ) do
-    value =
-      cond do
-        data_type_code == @tds_data_type_daten ->
-          decode_date(data)
-
-        data_type_code == @tds_data_type_timen ->
-          decode_time(data_info[:scale], data)
-
-        data_type_code == @tds_data_type_datetime2n ->
-          decode_datetime2(data_info[:scale], data)
-
-        data_type_code == @tds_data_type_datetimeoffsetn ->
-          decode_datetimeoffset(data_info[:scale], data)
-
-        data_type_code == @tds_data_type_uniqueidentifier ->
-          decode_uuid(:binary.copy(data))
-
-        data_type_code == @tds_data_type_intn ->
-          case length do
-            1 ->
-              <<val::unsigned-8, _tail::binary>> = data
-              val
-
-            2 ->
-              <<val::little-signed-16, _tail::binary>> = data
-              val
-
-            4 ->
-              <<val::little-signed-32, _tail::binary>> = data
-              val
-
-            8 ->
-              <<val::little-signed-64, _tail::binary>> = data
-              val
-          end
-
-        data_type_code in [
-          @tds_data_type_decimal,
-          @tds_data_type_numeric,
-          @tds_data_type_decimaln,
-          @tds_data_type_numericn
-        ] ->
-          decode_decimal(data_info[:precision], data_info[:scale], data)
-
-        data_type_code == @tds_data_type_bitn ->
-          data != <<0x00>>
-
-        data_type_code == @tds_data_type_floatn ->
-          data = data <> tail
-          len = length * 8
-          <<val::little-float-size(len), _::binary>> = data
-          val
-
-        data_type_code == @tds_data_type_moneyn ->
-          case length do
-            4 -> decode_smallmoney(data)
-            8 -> decode_money(data)
-          end
-
-        data_type_code == @tds_data_type_datetimen ->
-          case length do
-            4 -> decode_smalldatetime(data)
-            8 -> decode_datetime(data)
-          end
-
-        data_type_code in [
-          @tds_data_type_char,
-          @tds_data_type_varchar
-        ] ->
-          decode_char(data_info, data)
-
-        data_type_code in [
-          @tds_data_type_binary,
-          @tds_data_type_varbinary
-        ] ->
-          :binary.copy(data)
-      end
-
-    {value, tail}
-  end
-
-  # ShortLength Types
-  def decode_data(%{data_reader: :shortlen}, <<0xFF, 0xFF, tail::binary>>),
-    do: {nil, tail}
-
-  def decode_data(
-        %{data_type_code: data_type_code, data_reader: :shortlen} = data_info,
-        <<size::little-unsigned-16, data::binary-size(size), tail::binary>>
-      ) do
-    value =
-      cond do
-        data_type_code in [
-          @tds_data_type_bigvarchar,
-          @tds_data_type_bigchar
-        ] ->
-          decode_char(data_info, data)
-
-        data_type_code in [
-          @tds_data_type_bigvarbinary,
-          @tds_data_type_bigbinary
-        ] ->
-          :binary.copy(data)
-
-        data_type_code in [
-          @tds_data_type_nvarchar,
-          @tds_data_type_nchar
-        ] ->
-          decode_nchar(data_info, data)
-
-        data_type_code == @tds_data_type_udt ->
-          decode_udt(data_info, :binary.copy(data))
-      end
-
-    {value, tail}
-  end
-
-  def decode_data(%{data_reader: :longlen}, <<0x00, tail::binary>>),
-    do: {nil, tail}
-
-  def decode_data(
-        %{data_type_code: data_type_code, data_reader: :longlen} = data_info,
-        <<
-          text_ptr_size::unsigned-8,
-          _text_ptr::size(text_ptr_size)-unit(8),
-          _timestamp::unsigned-64,
-          size::little-signed-32,
-          data::binary-size(size)-unit(8),
-          tail::binary
-        >>
-      ) do
-    value =
-      case data_type_code do
-        @tds_data_type_text -> decode_char(data_info, data)
-        @tds_data_type_ntext -> decode_nchar(data_info, data)
-        @tds_data_type_image -> :binary.copy(data)
-        _ -> nil
-      end
-
-    {value, tail}
-  end
-
-  # TODO Variant Types
-
-  def decode_data(%{data_reader: :plp}, <<
-        @tds_plp_null::little-unsigned-64,
-        tail::binary
-      >>),
-      do: {nil, tail}
-
-  def decode_data(
-        %{data_type_code: data_type_code, data_reader: :plp} = data_info,
-        <<_size::little-unsigned-64, tail::binary>>
-      ) do
-    {data, tail} = decode_plp_chunk(tail, <<>>)
-
-    value =
-      cond do
-        data_type_code == @tds_data_type_xml ->
-          decode_xml(data_info, data)
-
-        data_type_code in [
-          @tds_data_type_bigvarchar,
-          @tds_data_type_bigchar,
-          @tds_data_type_text
-        ] ->
-          decode_char(data_info, data)
-
-        data_type_code in [
-          @tds_data_type_bigvarbinary,
-          @tds_data_type_bigbinary,
-          @tds_data_type_image
-        ] ->
-          data
-
-        data_type_code in [
-          @tds_data_type_nvarchar,
-          @tds_data_type_nchar,
-          @tds_data_type_ntext
-        ] ->
-          decode_nchar(data_info, data)
-
-        data_type_code == @tds_data_type_udt ->
-          decode_udt(data_info, data)
-      end
-
-    {value, tail}
-  end
-
-  def decode_plp_chunk(<<0::little-unsigned-32, tail::binary>>, buf), do: {buf, tail}
-
-  def decode_plp_chunk(
-        <<
-          chunksize::little-unsigned-32,
-          chunk::binary-size(chunksize)-unit(8),
-          tail::binary
-        >>,
-        buf
-      ) do
+  defp decode_plp_chunk(
+         <<
+           chunksize::little-unsigned-32,
+           chunk::binary-size(chunksize)-unit(8),
+           tail::binary
+         >>,
+         buf
+       ) do
     decode_plp_chunk(tail, buf <> :binary.copy(chunk))
   end
 
-  def decode_smallmoney(<<money::little-signed-32>>) do
+  defp decode_smallmoney(<<money::little-signed-32>>) do
     Float.round(money * 0.0001, 4)
   end
 
-  def decode_money(<<
-        money_m::little-unsigned-32,
-        money_l::little-unsigned-32
-      >>) do
+  defp decode_money(<<
+         money_m::little-unsigned-32,
+         money_l::little-unsigned-32
+       >>) do
     <<money::signed-64>> = <<money_m::32, money_l::32>>
     Float.round(money * 0.0001, 4)
   end
 
-  def decode_schema_info(<<0x00, tail::binary>>) do
+  defp decode_schema_info(<<0x00, tail::binary>>) do
     {nil, tail}
   end
 
-  def decode_schema_info(<<0x01, tail::binary>>) do
+  defp decode_schema_info(<<0x01, tail::binary>>) do
     <<
       dblen::little-unsigned-8,
       db::binary-size(dblen)-unit(16),
@@ -700,10 +703,10 @@ defmodule Tds.Types.Decoder do
     {schema_info, rest}
   end
 
-  def decode_uuid(<<_::128>> = bin), do: bin
+  defp decode_uuid(<<_::128>> = bin), do: bin
 
   # Decimal
-  def decode_decimal(precision, scale, <<sign::int8(), value::binary>>) do
+  defp decode_decimal(precision, scale, <<sign::int8(), value::binary>>) do
     size = byte_size(value)
     <<value::little-size(size)-unit(8)>> = value
 
@@ -715,21 +718,21 @@ defmodule Tds.Types.Decoder do
     end
   end
 
-  def decode_char(data_info, <<data::binary>>) do
+  defp decode_char(data_info, <<data::binary>>) do
     Tds.Utils.decode_chars(data, data_info.collation.codepage)
   end
 
-  def decode_nchar(_data_info, <<data::binary>>), do: UCS2.to_string(data)
+  defp decode_nchar(_data_info, <<data::binary>>), do: UCS2.to_string(data)
 
-  def decode_xml(_data_info, <<data::binary>>), do: UCS2.to_string(data)
+  defp decode_xml(_data_info, <<data::binary>>), do: UCS2.to_string(data)
 
   # UDT, if used, should be decoded by app that uses it,
   # tho we could've registered UDT types on connection
   # Example could be ecto, where custom type is created
   # special case are built in udt types such as HierarchyId
-  def decode_udt(%{}, <<data::binary>>), do: data
+  defp decode_udt(%{}, <<data::binary>>), do: data
 
-  def decode_date(<<days::little-24>>) do
+  defp decode_date(<<days::little-24>>) do
     date = :calendar.gregorian_days_to_date(days + 366)
 
     if use_elixir_calendar_types?() do
@@ -740,10 +743,10 @@ defmodule Tds.Types.Decoder do
   end
 
   # SmallDateTime
-  def decode_smalldatetime(<<
-        days::little-unsigned-16,
-        mins::little-unsigned-16
-      >>) do
+  defp decode_smalldatetime(<<
+         days::little-unsigned-16,
+         mins::little-unsigned-16
+       >>) do
     date = :calendar.gregorian_days_to_date(@year_1900_days + days)
     hour = trunc(mins / 60)
     min = trunc(mins - hour * 60)
@@ -756,10 +759,10 @@ defmodule Tds.Types.Decoder do
   end
 
   # DateTime
-  def decode_datetime(<<
-        days::little-signed-32,
-        secs300::little-unsigned-32
-      >>) do
+  defp decode_datetime(<<
+         days::little-signed-32,
+         secs300::little-unsigned-32
+       >>) do
     # Logger.debug "#{inspect {days, secs300}}"
     date = :calendar.gregorian_days_to_date(@year_1900_days + days)
 
@@ -781,7 +784,7 @@ defmodule Tds.Types.Decoder do
     end
   end
 
-  def decode_time(scale, <<fsec::binary>>) do
+  defp decode_time(scale, <<fsec::binary>>) do
     # this is kind of rendudant, since "size" can be, and is, read from token
     parsed_fsec =
       cond do
@@ -825,7 +828,7 @@ defmodule Tds.Types.Decoder do
   end
 
   # DateTime2
-  def decode_datetime2(scale, <<data::binary>>) do
+  defp decode_datetime2(scale, <<data::binary>>) do
     {time, date} =
       cond do
         scale in [0, 1, 2] ->
@@ -857,7 +860,7 @@ defmodule Tds.Types.Decoder do
   end
 
   # DateTimeOffset
-  def decode_datetimeoffset(scale, <<data::binary>>) do
+  defp decode_datetimeoffset(scale, <<data::binary>>) do
     {datetime, offset_min} =
       cond do
         scale in [0, 1, 2] ->
