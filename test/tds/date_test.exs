@@ -31,12 +31,12 @@ defmodule DateTest do
         []
       )
 
-    assert nil == Types.encode_datetime(nil)
+    assert nil == Types.Encoder.encode_datetime(nil)
 
     assert @date ==
              @date
-             |> Types.encode_date()
-             |> Types.decode_date()
+             |> Types.Encoder.encode_date()
+             |> Types.Decoder.decode_date()
 
     assert [[nil]] ==
              "SELECT CAST(NULL AS date)"

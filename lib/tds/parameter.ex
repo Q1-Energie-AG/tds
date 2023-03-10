@@ -31,7 +31,7 @@ defmodule Tds.Parameter do
     |> Enum.map_join(", ", fn param ->
       param
       |> fix_data_type()
-      |> Types.encode_param_descriptor()
+      |> Types.Encoder.encode_param_descriptor()
     end)
   end
 

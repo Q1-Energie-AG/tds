@@ -26,7 +26,7 @@ defimpl DBConnection.Query, for: Tds.Query do
   end
 
   def encode(%Query{statement: statement}, params, _) do
-    param_desc = Enum.map_join(params, ", ", &Types.encode_param_descriptor/1)
+    param_desc = Enum.map_join(params, ", ", &Types.Encoder.encode_param_descriptor/1)
 
     [
       %Parameter{value: statement, type: :string},

@@ -412,11 +412,11 @@ defmodule Tds.Messages do
   defp encode_rpc_param(%Tds.Parameter{name: name} = param) do
     p_name = UCS2.from_string(name)
     p_flags = param |> Parameter.option_flags()
-    {type_code, type_data, type_attr} = Types.encode_data_type(param)
+    {type_code, type_data, type_attr} = Types.Encoder.encode_data_type(param)
 
     p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
 
-    p_meta_data <> Types.encode_data(type_code, param.value, type_attr)
+    p_meta_data <> Types.Encoder.encode_data(type_code, param.value, type_attr)
   end
 
   def encode_header(type, data, id, status) do

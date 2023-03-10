@@ -73,7 +73,7 @@ defmodule DatetimeOffsetTest do
       assert [[^dt]] = query("SELECT CAST(#{str} AS datetimeoffset(7))", [])
     end)
 
-    assert nil == Types.encode_datetimeoffset(nil)
+    assert nil == Types.Encoder.encode_datetimeoffset(nil)
 
     assert [[nil]] == query("SELECT CAST(NULL AS datetimeoffset)", [])
     assert [[nil]] == query("SELECT CAST(NULL AS datetimeoffset(0))", [])

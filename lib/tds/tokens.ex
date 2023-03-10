@@ -83,7 +83,7 @@ defmodule Tds.Tokens do
     >> = bin
 
     name = UCS2.to_string(name)
-    {value, tail} = Tds.Types.decode(data)
+    {value, tail} = Tds.Types.Decoder.decode(data)
     param = %Tds.Parameter{name: name, value: value, direction: :output}
     {{:returnvalue, param}, tail, collmetadata}
   end
@@ -515,7 +515,7 @@ defmodule Tds.Tokens do
   end
 
   defp decode_column(<<_usertype::int32(), _flags::int16(), tail::binary>>),
-    do: Types.decode_column(tail)
+    do: Types.Decoder.decode_column(tail)
 
   defp decode_row_columns(binary, colmetadata, acc \\ [])
 
@@ -548,6 +548,6 @@ defmodule Tds.Tokens do
   end
 
   defp decode_row_column(<<tail::binary>>, column_meta) do
-    Types.decode_data(column_meta, tail)
+    Types.Decoder.decode_data(column_meta, tail)
   end
 end

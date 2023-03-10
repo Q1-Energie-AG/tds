@@ -32,11 +32,11 @@ defmodule Tds.Protocol.Token do
       0b0000_0000 -> {:variable, :count}
       0b0010_0000 -> {:variable, :length}
       0b0001_0000 -> {:fixed, 0}
-      0b0011_0000 -> {:fixed, fixed_length(token)}
+      0b0011_0000 -> {:fixed, get_length(token)}
     end
   end
 
-  defp fixed_length(token) do
+  defp get_length(token) do
     case token &&& 0b00001100 do
       0b0000_0000 -> 1
       0b0000_0100 -> 2
