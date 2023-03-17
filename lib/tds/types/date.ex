@@ -5,33 +5,22 @@ defmodule Tds.Types.Date do
   @tds_data_type_daten 0x28
 
   def encode(%Parameter{name: name} = p) do
-    p_name = UCS2.from_string(name)
-    p_flags = p |> Parameter.option_flags()
-
-    {type_data, type_attr} = encode_type(p)
-
-    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
-
-    p_meta_data <> encode_data(p.value, type_attr)
+    [
+      byte_size(name),
+      UCS2.from_string(name),
+      Parameter.option_flags(p),
+      @tds_data_type_daten,
+      encode_data(p.value)
+    ]
+    |> IO.iodata_to_binary()
   end
 
-  defp encode_type(%Parameter{}) do
-    type = @tds_data_type_daten
-    data = <<type>>
-    {data, []}
-  end
+  defp encode_data(nil), do: 0x00
 
-  defp encode_data(value, _attr) do
+  defp encode_data(value) do
     data = encode_date(value)
-
-    if data == nil do
-      <<0x00>>
-    else
-      <<0x03, data::binary>>
-    end
+    <<0x03, data::binary>>
   end
-
-  def encode_date(nil), do: nil
 
   def encode_date(%Date{} = date), do: date |> Date.to_erl() |> encode_date()
 

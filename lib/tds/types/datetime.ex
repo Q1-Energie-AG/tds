@@ -10,27 +10,20 @@ defmodule Tds.Types.Datetime do
     p_name = UCS2.from_string(name)
     p_flags = p |> Parameter.option_flags()
 
-    {type_data, type_attr} = encode_type(p)
+    data =
+      case p.type do
+        :smalldatetime ->
+          [0x04, encode_data(p.value, length: 4)]
 
-    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
+        _ ->
+          [0x08, encode_data(p.value, length: 8)]
+      end
 
-    p_meta_data <> encode_data(p.value, type_attr)
-  end
-
-  defp encode_type(%Parameter{type: :smalldatetime}) do
-    type = @tds_data_type_datetimen
-    data = <<type, 0x04>>
-    {data, length: 4}
-  end
-
-  defp encode_type(%Parameter{}) do
-    type = @tds_data_type_datetimen
-    data = <<type, 0x08>>
-    {data, length: 8}
+    [byte_size(name), p_name, p_flags, @tds_data_type_datetimen, data]
+    |> IO.iodata_to_binary()
   end
 
   defp encode_data(value, attr) do
-    # Logger.debug "dtn #{inspect attr}"
     data =
       case attr[:length] do
         4 ->

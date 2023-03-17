@@ -211,9 +211,4 @@ defmodule Tds.Types.Encoder do
 
   defp encode_binary_descriptor(value) when byte_size(value) > 0,
     do: "varbinary(max)"
-
-  # def encode_binary_descriptor(value) when byte_size(value) > 8_000,
-  #   do: "varbinary(max)"
-
-  # def encode_binary_descriptor(value), do: "varbinary(#{byte_size(value)})"
 end

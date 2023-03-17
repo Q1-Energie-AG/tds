@@ -3,6 +3,7 @@ defmodule Tds.Types.Decimal do
   alias Tds.Parameter
 
   @tds_data_type_decimaln 0x6A
+  @precision 38
 
   def encode(%Parameter{name: name} = p) do
     p_name = UCS2.from_string(name)
@@ -10,9 +11,8 @@ defmodule Tds.Types.Decimal do
 
     {type_data, type_attr} = encode_type(p)
 
-    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
-
-    p_meta_data <> encode_data(p.value, type_attr)
+    [<<byte_size(name)>>, p_name, p_flags, type_data, encode_data(p.value, type_attr)]
+    |> IO.iodata_to_binary()
   end
 
   def encode_type(%Parameter{value: nil}) do
@@ -21,16 +21,14 @@ defmodule Tds.Types.Decimal do
   end
 
   def encode_type(%Parameter{value: value}) do
-    Decimal.Context.update(&Map.put(&1, :precision, 38))
+    Decimal.Context.update(&Map.put(&1, :precision, @precision))
 
-    value_list =
+    {precision, scale} =
       value
       |> Decimal.abs()
       |> Decimal.to_string(:normal)
       |> String.split(".")
-
-    {precision, scale} =
-      case value_list do
+      |> case do
         [p, s] ->
           len = String.length(s)
           {String.length(p) + len, len}
@@ -39,28 +37,9 @@ defmodule Tds.Types.Decimal do
           {String.length(p), 0}
       end
 
-    value =
-      value
-      |> Decimal.abs()
-      |> Map.fetch!(:coef)
-      |> :binary.encode_unsigned(:little)
+    size = size_for_precision(precision)
 
-    value_size = byte_size(value)
-
-    len =
-      cond do
-        precision <= 9 -> 4
-        precision <= 19 -> 8
-        precision <= 28 -> 12
-        precision <= 38 -> 16
-      end
-
-    padding = len - value_size
-    value_size = value_size + padding + 1
-
-    type = @tds_data_type_decimaln
-    data = <<type, value_size, precision, scale>>
-    {data, precision: precision, scale: scale}
+    {[@tds_data_type_decimaln, size + 1, precision, scale], [precision: precision, scale: scale]}
   end
 
   # decimal
@@ -68,45 +47,33 @@ defmodule Tds.Types.Decimal do
     Decimal.Context.update(&Map.put(&1, :precision, 38))
     precision = attr[:precision]
 
-    d =
-      value
-      |> Decimal.to_string()
-      |> Decimal.new()
-
     sign =
-      case d.sign do
+      case value.sign do
         1 -> 1
         -1 -> 0
       end
 
-    value =
-      d
-      |> Decimal.abs()
-      |> Map.fetch!(:coef)
-
-    value_binary = :binary.encode_unsigned(value, :little)
+    value_binary = :binary.encode_unsigned(value.coef, :little)
 
     value_size = byte_size(value_binary)
 
-    len =
-      cond do
-        precision <= 9 -> 4
-        precision <= 19 -> 8
-        precision <= 28 -> 12
-        precision <= 38 -> 16
-      end
+    size = size_for_precision(precision)
 
-    {byte_len, padding} = {len, len - value_size}
-    byte_len = byte_len + 1
-    value_binary = value_binary <> <<0::size(padding)-unit(8)>>
-    <<byte_len>> <> <<sign>> <> value_binary
+    [size + 1, sign, value_binary, <<0::size(size - value_size)-unit(8)>>]
   end
 
   def encode_data(nil, _), do: <<>>
-  # <<0, 0, 0, 0>
-  # do: <<0x00::little-unsigned-32>>
 
   def encode_data(value, attr) do
     encode_data(Decimal.new(value), attr)
+  end
+
+  defp size_for_precision(precision) do
+    cond do
+      precision < 10 -> 4
+      precision < 20 -> 8
+      precision < 29 -> 12
+      precision < 39 -> 16
+    end
   end
 end

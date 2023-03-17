@@ -10,48 +10,22 @@ defmodule Tds.Types.Binary do
     p_name = UCS2.from_string(name)
     p_flags = p |> Parameter.option_flags()
 
-    {type_data, type_attr} = encode_type(p)
-
-    p_meta_data = <<byte_size(name)>> <> p_name <> p_flags <> type_data
-
-    p_meta_data <> encode_data(p.value, type_attr)
+    [byte_size(name), p_name, p_flags, do_encode(p.value)]
+    |> IO.iodata_to_binary()
   end
 
-  def encode_type(%Parameter{value: value}) do
-    value =
-      if is_integer(value) do
-        <<value>>
-      else
-        value
+  defp do_encode(nil),
+    do: [@tds_data_type_bigvarbinary, <<0xFF, 0xFF>>, <<@tds_plp_null::little-unsigned-64>>]
+
+  defp do_encode(int) when is_integer(int), do: do_encode(<<int>>)
+
+  defp do_encode(value) do
+    encoded =
+      case byte_size(value) do
+        size when size > 8000 -> [<<0xFF, 0xFF>>, PLP.encode(value)]
+        size -> [<<size::little-unsigned-16>>, <<size::little-unsigned-16>>, value]
       end
 
-    length = length_for_binary(value)
-    type = @tds_data_type_bigvarbinary
-    data = <<type>> <> length
-    {data, []}
-  end
-
-  def encode_data(value, attr) when is_integer(value),
-    do: encode_data(<<value>>, attr)
-
-  def encode_data(nil, _),
-    do: <<@tds_plp_null::little-unsigned-64>>
-
-  def encode_data(value, _) do
-    case byte_size(value) do
-      # varbinary(max) gets encoded in chunks
-      value_size when value_size > 8000 -> PLP.encode(value)
-      value_size -> <<value_size::little-unsigned-16>> <> value
-    end
-  end
-
-  defp length_for_binary(nil), do: <<0xFF, 0xFF>>
-
-  defp length_for_binary(value) do
-    case byte_size(value) do
-      # varbinary(max)
-      value_size when value_size > 8000 -> <<0xFF, 0xFF>>
-      value_size -> <<value_size::little-unsigned-16>>
-    end
+    [@tds_data_type_bigvarbinary, encoded]
   end
 end
