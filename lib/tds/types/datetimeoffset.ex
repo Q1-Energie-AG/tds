@@ -54,8 +54,7 @@ defmodule Tds.Types.Datetimeoffset do
   defp encode_datetimeoffset(nil, _), do: nil
 
   defp encode_datetimeoffset({date, time, offset_min}, scale) do
-    {datetime, _ignore_always_10bytes} =
-      Tds.Types.Datetime2.encode_datetime2({date, time}, scale)
+    {datetime, _ignore_always_10bytes} = Tds.Types.Datetime2.encode_datetime2({date, time}, scale)
 
     datetime <> <<offset_min::little-signed-16>>
   end
